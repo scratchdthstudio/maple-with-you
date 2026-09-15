@@ -78,6 +78,37 @@
       margin-bottom: 8px;
     }
 
+    /* 상단 우측 Auth 위젯 */
+    .auth-panel {
+      top: 25px; right: 25px;
+      display: flex; gap: 10px; align-items: center;
+      padding: 12px 20px;
+    }
+    .user-greeting { font-size: 0.9rem; font-weight: 600; }
+
+    /* 모달 팝업 */
+    .modal-overlay {
+      position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+      background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(5px);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 1000; opacity: 0; pointer-events: none; transition: opacity 0.2s ease;
+    }
+    .modal-overlay.active { opacity: 1; pointer-events: auto; }
+    .auth-modal {
+      width: 340px; background: rgba(24, 24, 38, 0.95);
+      border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 20px; padding: 24px;
+      display: flex; flex-direction: column; gap: 14px;
+    }
+    .auth-modal h3 { font-size: 1.1rem; text-align: center; }
+    .auth-input {
+      width: 100%; padding: 10px 14px; border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.2); background: rgba(0, 0, 0, 0.4);
+      color: #fff; font-size: 0.9rem; outline: none;
+    }
+    .auth-modal-btn { background: #6c5ce7; border: none; font-weight: 600; padding: 10px; }
+    .auth-modal-btn:hover { background: #5a4bcf; }
+    .auth-switch { font-size: 0.8rem; text-align: center; color: #a29bfe; cursor: pointer; }
+
     .timer-panel { top: 25px; left: 25px; width: 260px; text-align: center; }
     .timer-display {
       font-size: 2.5rem; font-weight: 700;
@@ -162,6 +193,29 @@
     <div id="player"></div>
   </div>
 
+  <!-- 상단 우측 인증 패널 -->
+  <div class="widget auth-panel">
+    <div id="auth-logged-out" style="display: flex; gap: 8px;">
+      <button id="open-login-btn">로그인</button>
+      <button id="open-signup-btn">회원가입</button>
+    </div>
+    <div id="auth-logged-in" style="display: none; align-items: center; gap: 12px;">
+      <span class="user-greeting" id="user-display-name"></span>
+      <button id="logout-btn">로그아웃</button>
+    </div>
+  </div>
+
+  <!-- 인증 모달 -->
+  <div class="modal-overlay" id="auth-modal-overlay">
+    <div class="auth-modal">
+      <h3 id="modal-title">로그인</h3>
+      <input type="text" id="auth-username" class="auth-input" placeholder="아이디">
+      <input type="password" id="auth-password" class="auth-input" placeholder="비밀번호">
+      <button class="auth-modal-btn" id="modal-submit-btn">로그인</button>
+      <div class="auth-switch" id="modal-switch-btn">계정이 없으신가요? 회원가입</div>
+    </div>
+  </div>
+
   <!-- 1. 타이머 패널 -->
   <div class="widget timer-panel">
     <div class="widget-title">YOUTUBE TIMER</div>
@@ -176,14 +230,13 @@
   <div class="widget music-panel">
     <div class="widget-title">YOUTUBE LO-FI PLAYER</div>
     
-    <!-- 플레이리스트 그룹 선택 영역 -->
     <div class="pl-selector-group">
       <select id="playlist-select" class="pl-select"></select>
       <button id="create-pl-btn">+ 새 플리</button>
       <button id="delete-pl-btn" class="del-btn" style="padding: 6px 10px;">삭제</button>
     </div>
 
-    <div class="track-info" id="track-title">재생할 영상 선택</div>
+    <div class="track-info" id="track-title">로그인이 필요합니다</div>
 
     <div class="video-settings">
       <div class="slider-header-labels">
@@ -218,11 +271,17 @@
   <script>
     let player;
     let playlists = [];
-    let currentPlaylistId = 1;
+    let currentPlaylistId = null;
     let playlist = [];
     let currentTrackIndex = 0;
     let isPlaying = false;
     let timerInterval = null;
+    let isAuthModeLogin = true;
+
+    function getAuthHeaders() {
+      const token = localStorage.getItem('token');
+      return token ? { 'Authorization': `Bearer ${token}` } : {};
+    }
 
     function formatTime(seconds) {
       if (isNaN(seconds) || seconds < 0) seconds = 0;
@@ -293,30 +352,132 @@
       return (match && match[2].length === 11) ? match[2] : url;
     }
 
-    // 플레이리스트 그룹 목록 로드
+    // --- Auth Handling ---
+    const modalOverlay = document.getElementById('auth-modal-overlay');
+    const modalTitle = document.getElementById('modal-title');
+    const modalSubmitBtn = document.getElementById('modal-submit-btn');
+    const modalSwitchBtn = document.getElementById('modal-switch-btn');
+
+    function openAuthModal(isLogin) {
+      isAuthModeLogin = isLogin;
+      modalTitle.innerText = isLogin ? "로그인" : "회원가입";
+      modalSubmitBtn.innerText = isLogin ? "로그인" : "회원가입";
+      modalSwitchBtn.innerText = isLogin ? "계정이 없으신가요? 회원가입" : "이미 계정이 있으신가요? 로그인";
+      modalOverlay.classList.add('active');
+    }
+
+    modalOverlay.addEventListener('click', (e) => {
+      if (e.target === modalOverlay) modalOverlay.classList.remove('active');
+    });
+
+    document.getElementById('open-login-btn').addEventListener('click', () => openAuthModal(true));
+    document.getElementById('open-signup-btn').addEventListener('click', () => openAuthModal(false));
+    modalSwitchBtn.addEventListener('click', () => openAuthModal(!isAuthModeLogin));
+
+    modalSubmitBtn.addEventListener('click', async () => {
+      const username = document.getElementById('auth-username').value.trim();
+      const password = document.getElementById('auth-password').value.trim();
+      if (!username || !password) return alert("아이디와 비밀번호를 입력해주세요.");
+
+      if (isAuthModeLogin) {
+        const formData = new URLSearchParams();
+        formData.append('username', username);
+        formData.append('password', password);
+
+        const res = await fetch('/api/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: formData
+        });
+        const data = await res.json();
+        if (res.ok) {
+          localStorage.setItem('token', data.access_token);
+          modalOverlay.classList.remove('active');
+          checkAuthStatus();
+        } else {
+          alert(data.detail || "로그인 실패");
+        }
+      } else {
+        const res = await fetch('/api/signup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          alert("회원가입 완료! 로그인해주세요.");
+          openAuthModal(true);
+        } else {
+          alert(data.detail || "회원가입 실패");
+        }
+      }
+    });
+
+    document.getElementById('logout-btn').addEventListener('click', () => {
+      localStorage.removeItem('token');
+      checkAuthStatus();
+    });
+
+    async function checkAuthStatus() {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        showLoggedOutUI();
+        return;
+      }
+      const res = await fetch('/api/me', { headers: getAuthHeaders() });
+      if (res.ok) {
+        const user = await res.json();
+        document.getElementById('user-display-name').innerText = `${user.username} 님`;
+        document.getElementById('auth-logged-out').style.display = 'none';
+        document.getElementById('auth-logged-in').style.display = 'flex';
+        fetchPlaylists();
+        fetchTodos();
+      } else {
+        localStorage.removeItem('token');
+        showLoggedOutUI();
+      }
+    }
+
+    function showLoggedOutUI() {
+      document.getElementById('auth-logged-out').style.display = 'flex';
+      document.getElementById('auth-logged-in').style.display = 'none';
+      document.getElementById('playlist-select').innerHTML = '';
+      document.getElementById('playlist-list').innerHTML = '';
+      document.getElementById('todo-list').innerHTML = '';
+      document.getElementById('track-title').innerText = "로그인이 필요합니다";
+      if (player && player.stopVideo) player.stopVideo();
+    }
+
+    // --- Playlist Handling ---
     async function fetchPlaylists() {
-      const res = await fetch('/api/playlists');
+      const res = await fetch('/api/playlists', { headers: getAuthHeaders() });
+      if (!res.ok) return;
       playlists = await res.json();
       
       const selectEl = document.getElementById('playlist-select');
       selectEl.innerHTML = '';
+      
       playlists.forEach(pl => {
         const opt = document.createElement('option');
         opt.value = pl.id;
         opt.innerText = pl.name;
-        if (pl.id === currentPlaylistId) opt.selected = true;
         selectEl.appendChild(opt);
       });
 
-      if (playlists.length > 0 && !playlists.find(p => p.id === currentPlaylistId)) {
+      if (playlists.length > 0) {
         currentPlaylistId = playlists[0].id;
+        selectEl.value = currentPlaylistId;
+        fetchPlaylistItems();
+      } else {
+        playlist = [];
+        renderPlaylist();
       }
-      fetchPlaylistItems();
     }
 
-    // 선택된 플레이리스트의 세부 항목 로드
     async function fetchPlaylistItems() {
-      const res = await fetch(`/api/playlists/${currentPlaylistId}/items`);
+      if (!currentPlaylistId) return;
+      const res = await fetch(`/api/playlists/${currentPlaylistId}/items`, { headers: getAuthHeaders() });
+      if (!res.ok) return;
       playlist = await res.json();
       currentTrackIndex = 0;
       renderPlaylist();
@@ -389,48 +550,39 @@
       document.getElementById('timer-start-btn').innerText = text;
     }
 
-    // 컨트롤 이벤트
     document.getElementById('play-btn').addEventListener('click', togglePlay);
     document.getElementById('timer-start-btn').addEventListener('click', togglePlay);
     document.getElementById('next-btn').addEventListener('click', nextTrack);
     document.getElementById('prev-btn').addEventListener('click', prevTrack);
 
-    // 드롭다운 변경 시 플레이리스트 교체
     document.getElementById('playlist-select').addEventListener('change', (e) => {
       currentPlaylistId = parseInt(e.target.value);
       fetchPlaylistItems();
     });
 
-    // 새 플레이리스트 생성
     document.getElementById('create-pl-btn').addEventListener('click', async () => {
+      if (!localStorage.getItem('token')) return alert("로그인이 필요합니다.");
       const name = prompt("새 플레이리스트 이름을 입력하세요:");
       if (!name) return;
 
       const res = await fetch('/api/playlists', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: name.trim() })
       });
-      const data = await res.json();
-      currentPlaylistId = data.id;
-      fetchPlaylists();
+      if (res.ok) fetchPlaylists();
     });
 
-    // 플레이리스트 삭제
     document.getElementById('delete-pl-btn').addEventListener('click', async () => {
-      if (playlists.length <= 1) {
-        alert("최소 하나의 플레이리스트는 유지되어야 합니다.");
-        return;
-      }
-      if (!confirm("현재 선택된 플레이리스트를 삭제하시겠습니까?")) return;
+      if (!currentPlaylistId) return;
+      if (!confirm("현재 플레이리스트를 삭제하시겠습니까?")) return;
 
-      await fetch(`/api/playlists/${currentPlaylistId}`, { method: 'DELETE' });
-      currentPlaylistId = playlists[0].id;
-      fetchPlaylists();
+      const res = await fetch(`/api/playlists/${currentPlaylistId}`, { method: 'DELETE', headers: getAuthHeaders() });
+      if (res.ok) fetchPlaylists();
     });
 
-    // 현재 플레이리스트에 영상 추가
     document.getElementById('yt-add-btn').addEventListener('click', async () => {
+      if (!currentPlaylistId) return alert("로그인 후 플레이리스트를 선택해주세요.");
       const input = document.getElementById('yt-url-input');
       const addBtn = document.getElementById('yt-add-btn');
       const val = input.value.trim();
@@ -444,23 +596,22 @@
 
       await fetch('/api/playlist/items', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
         body: JSON.stringify({ playlist_id: currentPlaylistId, title: titleName, youtube_id: ytId })
       });
 
       input.value = '';
       addBtn.disabled = false;
       addBtn.innerText = "+ 추가";
-      
       fetchPlaylistItems();
     });
 
     async function deletePlaylistItem(itemId) {
-      await fetch(`/api/playlist/items/${itemId}`, { method: 'DELETE' });
+      await fetch(`/api/playlist/items/${itemId}`, { method: 'DELETE', headers: getAuthHeaders() });
       fetchPlaylistItems();
     }
 
-    // 투명도
+    // 투명도 슬라이더
     const opacitySlider = document.getElementById('opacitySlider');
     const opacityVal = document.getElementById('opacity-val');
     const ytWrapper = document.getElementById('yt-wrapper');
@@ -470,12 +621,13 @@
       ytWrapper.style.opacity = val / 100;
     });
 
-    // To-Do
+    // --- To-Do Handling ---
     const todoInput = document.getElementById('todo-input');
     const todoList = document.getElementById('todo-list');
 
     async function fetchTodos() {
-      const res = await fetch('/api/todos');
+      const res = await fetch('/api/todos', { headers: getAuthHeaders() });
+      if (!res.ok) return;
       const data = await res.json();
       todoList.innerHTML = '';
       data.forEach(item => {
@@ -485,7 +637,7 @@
         
         li.addEventListener('click', async (e) => {
           if (e.target.tagName === 'BUTTON') return;
-          await fetch(`/api/todos/${item.id}`, { method: 'PUT' });
+          await fetch(`/api/todos/${item.id}`, { method: 'PUT', headers: getAuthHeaders() });
           li.classList.toggle('done');
         });
 
@@ -493,7 +645,7 @@
         delBtn.className = 'del-btn';
         delBtn.innerText = '✕';
         delBtn.addEventListener('click', async () => {
-          await fetch(`/api/todos/${item.id}`, { method: 'DELETE' });
+          await fetch(`/api/todos/${item.id}`, { method: 'DELETE', headers: getAuthHeaders() });
           fetchTodos();
         });
 
@@ -504,10 +656,11 @@
 
     todoInput.addEventListener('keypress', async (e) => {
       if (e.key === 'Enter' && todoInput.value.trim() !== '') {
+        if (!localStorage.getItem('token')) return alert("로그인이 필요합니다.");
         const text = todoInput.value.trim();
         await fetch('/api/todos', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
           body: JSON.stringify({ text: text, done: false })
         });
         todoInput.value = '';
@@ -516,9 +669,8 @@
     });
 
     setTimeout(() => {
-      fetchPlaylists();
-      fetchTodos();
-    }, 1000);
+      checkAuthStatus();
+    }, 500);
   </script>
 </body>
 </html>
