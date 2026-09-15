@@ -21,7 +21,6 @@
       z-index: -2;
     }
 
-    /* 유튜브 임베드 컨테이너 (화면 전체 레이어) */
     .yt-wrapper {
       position: absolute;
       top: 0; left: 0;
@@ -34,7 +33,7 @@
     }
     .yt-wrapper iframe {
       width: 100vw;
-      height: 56.25vw; /* 16:9 비율 유지 */
+      height: 56.25vw;
       min-height: 100vh;
       min-width: 177.77vh;
       position: absolute;
@@ -144,17 +143,15 @@
 </head>
 <body>
 
-  <!-- 기본 배경 MP4 -->
   <video id="bg-video" autoplay loop muted>
     <source src="background.mp4" type="video/mp4">
   </video>
 
-  <!-- 유튜브 화면 레이어 -->
   <div class="yt-wrapper" id="yt-wrapper">
     <div id="player"></div>
   </div>
 
-  <!-- 1. 타이머 -->
+  <!-- 1. 타이머 패널 -->
   <div class="widget timer-panel">
     <div class="widget-title">YOUTUBE TIMER</div>
     <div class="timer-display" id="timer-display">00:00:00</div>
@@ -177,7 +174,6 @@
       <input type="range" id="opacitySlider" class="range-slider" min="0" max="100" value="50">
     </div>
 
-    <!-- 유튜브 링크 추가 입력을 위한 그룹 -->
     <div class="yt-input-group">
       <input type="text" id="yt-url-input" class="yt-input" placeholder="유튜브 URL 또는 ID 입력">
       <button id="yt-add-btn">+ 추가</button>
@@ -192,22 +188,31 @@
     <div class="playlist-container" id="playlist-list"></div>
   </div>
 
-  <!-- 3. 투두 리스트 -->
+  <!-- 3. 투두 리스트 패널 -->
   <div class="widget todo-panel">
     <div class="widget-title">TO-DO LIST</div>
     <input type="text" id="todo-input" class="todo-input" placeholder="할 일 입력 후 Enter">
     <ul id="todo-list" class="todo-list"></ul>
   </div>
 
-  <!-- YouTube IFrame Player API Script -->
   <script src="https://www.youtube.com/iframe_api"></script>
   <script>
     let player;
     let playlist = [];
     let currentTrackIndex = 0;
     let isPlaying = false;
+    let timerInterval = null;
 
-    // 유튜브 API 준비 완료 이벤트
+    // 초를 HH:MM:SS 포맷 문자열로 변환
+    function formatTime(seconds) {
+      const s = Math.floor(seconds);
+      const hrs = Math.floor(s / 3600);
+      const mins = Math.floor((s % 3600) / 60);
+      const secs = s % 60;
+      return `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+    }
+
+    // 유튜브 API 준비 시 호출
     function onYouTubeIframeAPIReady() {
       player = new YT.Player('player', {
         height: '100%',
@@ -226,26 +231,53 @@
       });
     }
 
+    // 유튜브 영상 상태 변경에 따른 타이머 및 버튼 연동
     function onPlayerStateChange(event) {
-      if (event.data === YT.PlayerState.ENDED) {
+      if (event.data === YT.PlayerState.PLAYING) {
+        isPlaying = true;
+        updatePlayButtons();
+        startTimerLoop();
+      } else if (event.data === YT.PlayerState.PAUSED) {
+        isPlaying = false;
+        updatePlayButtons();
+        stopTimerLoop();
+      } else if (event.data === YT.PlayerState.ENDED) {
+        isPlaying = false;
+        stopTimerLoop();
         nextTrack();
       }
     }
 
-    // 유튜브 ID 추출 함수 (URL 주소 또는 순수 ID 처리)
+    // 타이머 1초 주기 동기화 갱신
+    function startTimerLoop() {
+      if (timerInterval) clearInterval(timerInterval);
+      timerInterval = setInterval(() => {
+        if (player && player.getCurrentTime) {
+          const current = player.getCurrentTime();
+          document.getElementById('timer-display').innerText = formatTime(current);
+        }
+      }, 500);
+    }
+
+    function stopTimerLoop() {
+      if (timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+      }
+    }
+
     function extractYoutubeId(url) {
       const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
       const match = url.match(regExp);
       return (match && match[2].length === 11) ? match[2] : url;
     }
 
-    // 플레이리스트 DB에서 불러오기
     async function fetchPlaylist() {
       const res = await fetch('/api/playlist');
       playlist = await res.json();
       renderPlaylist();
 
-      if (playlist.length > 0 && player && player.loadVideoById) {
+      if (playlist.length > 0 && player && player.cueVideoById) {
         loadTrack(0, false);
       }
     }
@@ -276,8 +308,6 @@
       if (player && player.loadVideoById) {
         if (autoPlay) {
           player.loadVideoById(track.youtube_id);
-          isPlaying = true;
-          updatePlayButtons();
         } else {
           player.cueVideoById(track.youtube_id);
         }
@@ -289,12 +319,9 @@
       if (!player) return;
       if (isPlaying) {
         player.pauseVideo();
-        isPlaying = false;
       } else {
         player.playVideo();
-        isPlaying = true;
       }
-      updatePlayButtons();
     }
 
     function nextTrack() {
@@ -315,13 +342,20 @@
       document.getElementById('timer-start-btn').innerText = text;
     }
 
-    // 엘리먼트 이벤트 리스너 설정
+    // 엘리먼트 이벤트
     document.getElementById('play-btn').addEventListener('click', togglePlay);
     document.getElementById('timer-start-btn').addEventListener('click', togglePlay);
     document.getElementById('next-btn').addEventListener('click', nextTrack);
     document.getElementById('prev-btn').addEventListener('click', prevTrack);
 
-    // 유튜브 항목 추가 버튼
+    // 타이머 리셋 (영상 0초로 다시 이동)
+    document.getElementById('timer-reset-btn').addEventListener('click', () => {
+      if (player && player.seekTo) {
+        player.seekTo(0);
+        document.getElementById('timer-display').innerText = "00:00:00";
+      }
+    });
+
     document.getElementById('yt-add-btn').addEventListener('click', async () => {
       const input = document.getElementById('yt-url-input');
       const val = input.value.trim();
@@ -345,7 +379,7 @@
       fetchPlaylist();
     }
 
-    // 배경 영상 투명도 조절
+    // 투명도 조절
     const opacitySlider = document.getElementById('opacitySlider');
     const opacityVal = document.getElementById('opacity-val');
     const ytWrapper = document.getElementById('yt-wrapper');
@@ -356,7 +390,7 @@
       ytWrapper.style.opacity = val / 100;
     });
 
-    // To-Do API 기능
+    // To-Do 처리
     const todoInput = document.getElementById('todo-input');
     const todoList = document.getElementById('todo-list');
 
@@ -401,7 +435,6 @@
       }
     });
 
-    // 초기화 실행
     setTimeout(() => {
       fetchPlaylist();
       fetchTodos();
