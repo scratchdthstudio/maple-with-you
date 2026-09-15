@@ -50,6 +50,15 @@
       padding: 20px 24px;
       border: 1px solid rgba(255, 255, 255, 0.12);
       box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+      transition: opacity 0.3s ease, transform 0.3s ease, visibility 0.3s;
+    }
+
+    /* UI 숨김 클래스 */
+    .widget.hidden-ui {
+      opacity: 0 !important;
+      transform: translateY(10px) !important;
+      pointer-events: none !important;
+      visibility: hidden;
     }
 
     button {
@@ -150,6 +159,30 @@
       border-radius: 8px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; font-size: 0.88rem;
     }
     .todo-list li.done { text-decoration: line-through; opacity: 0.45; }
+
+    /* UI 온/오프 토글 전용 하단 버튼 */
+    .toggle-ui-btn {
+      position: absolute;
+      bottom: 25px;
+      right: 25px;
+      z-index: 100;
+      background: rgba(18, 18, 28, 0.75);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: #fff;
+      padding: 10px 16px;
+      border-radius: 30px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .toggle-ui-btn:hover {
+      background: rgba(255, 255, 255, 0.25);
+    }
   </style>
 </head>
 <body>
@@ -162,8 +195,13 @@
     <div id="player"></div>
   </div>
 
+  <!-- UI 토글 전용 독립 버튼 (우측 하단) -->
+  <button id="toggle-ui-btn" class="toggle-ui-btn">
+    <span id="toggle-icon">🙈</span> <span id="toggle-text">UI 숨기기</span>
+  </button>
+
   <!-- 1. 타이머 패널 -->
-  <div class="widget timer-panel">
+  <div class="widget timer-panel main-widget">
     <div class="widget-title">YOUTUBE TIMER</div>
     <div class="timer-display" id="timer-display">00:00:00</div>
     <div class="btn-group">
@@ -173,7 +211,7 @@
   </div>
 
   <!-- 2. 유튜브 플레이어 패널 -->
-  <div class="widget music-panel">
+  <div class="widget music-panel main-widget">
     <div class="widget-title">YOUTUBE LO-FI PLAYER</div>
     
     <div class="pl-selector-group">
@@ -207,7 +245,7 @@
   </div>
 
   <!-- 3. 투두 리스트 패널 -->
-  <div class="widget todo-panel">
+  <div class="widget todo-panel main-widget">
     <div class="widget-title">TO-DO LIST</div>
     <input type="text" id="todo-input" class="todo-input" placeholder="할 일 입력 후 Enter">
     <ul id="todo-list" class="todo-list"></ul>
@@ -222,6 +260,33 @@
     let currentTrackIndex = 0;
     let isPlaying = false;
     let timerInterval = null;
+    let isUiVisible = true;
+
+    // UI 숨기기 / 보이기 토글 로직
+    const toggleUiBtn = document.getElementById('toggle-ui-btn');
+    const toggleIcon = document.getElementById('toggle-icon');
+    const toggleText = document.getElementById('toggle-text');
+    const mainWidgets = document.querySelectorAll('.main-widget');
+
+    toggleUiBtn.addEventListener('click', () => {
+      isUiVisible = !isUiVisible;
+      
+      mainWidgets.forEach(widget => {
+        if (isUiVisible) {
+          widget.classList.remove('hidden-ui');
+        } else {
+          widget.classList.add('hidden-ui');
+        }
+      });
+
+      if (isUiVisible) {
+        toggleIcon.innerText = "🙈";
+        toggleText.innerText = "UI 숨기기";
+      } else {
+        toggleIcon.innerText = "👁️";
+        toggleText.innerText = "UI 켜기";
+      }
+    });
 
     function formatTime(seconds) {
       if (isNaN(seconds) || seconds < 0) seconds = 0;
