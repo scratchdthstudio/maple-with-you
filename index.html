@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Chill Space - Lo-Fi Workspace</title>
+  <title>Chill Space - Google Drive Lo-Fi Workspace</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
     body {
@@ -13,7 +13,6 @@
       background: #000;
     }
 
-    /* 1시간 기본 메인 배경 영상 */
     #bg-video {
       position: absolute;
       top: 0; left: 0;
@@ -22,7 +21,6 @@
       z-index: -2;
     }
 
-    /* 플리 전용 비디오 레이어 (동적 제어 적용) */
     #playlist-video {
       position: absolute;
       top: 0; left: 0;
@@ -34,7 +32,6 @@
       transition: opacity 0.15s ease;
     }
 
-    /* 위젯 공통 스타일 */
     .widget {
       position: absolute;
       background: rgba(18, 18, 28, 0.65);
@@ -46,7 +43,6 @@
       box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
     }
 
-    /* 버튼 디자인 */
     button, .btn-label {
       background: rgba(255, 255, 255, 0.12);
       border: 1px solid rgba(255, 255, 255, 0.25);
@@ -67,9 +63,15 @@
       border-color: rgba(255, 255, 255, 0.4);
       transform: translateY(-1px);
     }
-    button:active, .btn-label:active { transform: translateY(0); }
 
-    /* 1. 타이머 위젯 */
+    /* 구글 로그인 전용 버튼 스타일 */
+    .google-btn {
+      background: #4285F4 !important;
+      border: none !important;
+      color: #fff !important;
+      font-weight: 600;
+    }
+
     .timer-panel { top: 25px; left: 25px; width: 260px; text-align: center; }
     .widget-title {
       font-size: 0.8rem;
@@ -94,7 +96,6 @@
     }
     .btn-group { display: flex; gap: 8px; justify-content: center; }
 
-    /* 2. 비디오/오디오 플레이어 위젯 */
     .music-panel { bottom: 25px; left: 25px; width: 380px; }
     .track-header {
       display: flex;
@@ -109,18 +110,9 @@
       text-overflow: ellipsis;
       white-space: nowrap;
       overflow: hidden;
-      max-width: 230px;
+      max-width: 220px;
     }
-    .file-select-btn {
-      font-size: 0.75rem;
-      padding: 5px 10px;
-      background: rgba(162, 155, 254, 0.2);
-      border-color: rgba(162, 155, 254, 0.4);
-      color: #dcdde1;
-    }
-    .file-select-btn:hover { background: rgba(162, 155, 254, 0.35); }
 
-    /* 투명도 조절 영역 */
     .video-settings {
       background: rgba(0, 0, 0, 0.3);
       border-radius: 12px;
@@ -132,18 +124,8 @@
       gap: 10px;
     }
 
-    .slider-area {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
-
-    .slider-header-labels {
-      display: flex;
-      justify-content: space-between;
-      font-size: 0.75rem;
-      color: rgba(255, 255, 255, 0.6);
-    }
+    .slider-area { display: flex; flex-direction: column; gap: 4px; }
+    .slider-header-labels { display: flex; justify-content: space-between; font-size: 0.75rem; color: rgba(255, 255, 255, 0.6); }
 
     .range-slider {
       -webkit-appearance: none;
@@ -155,161 +137,68 @@
       outline: none;
       cursor: pointer;
     }
-
     .range-slider::-webkit-slider-thumb {
       -webkit-appearance: none;
       appearance: none;
-      width: 16px;
-      height: 16px;
-      border-radius: 50%;
-      background: #a29bfe;
-      cursor: pointer;
-      transition: background-color 0.15s ease;
+      width: 16px; height: 16px; border-radius: 50%; background: #a29bfe; cursor: pointer;
     }
-
-    .range-slider::-webkit-slider-thumb:hover { background: #bebcff; }
 
     .preset-selector {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      background: rgba(0, 0, 0, 0.25);
-      border-radius: 8px;
-      padding: 4px;
+      display: flex; align-items: center; justify-content: space-between;
+      background: rgba(0, 0, 0, 0.25); border-radius: 8px; padding: 4px;
       border: 1px solid rgba(255, 255, 255, 0.08);
     }
+    .arrow-btn { padding: 4px 10px; font-size: 0.75rem; border-radius: 6px; background: rgba(255, 255, 255, 0.1); border: none; }
+    .preset-display { font-size: 0.8rem; font-weight: 600; color: #a29bfe; text-align: center; flex: 1; }
 
-    .arrow-btn {
-      padding: 4px 10px;
-      font-size: 0.75rem;
-      border-radius: 6px;
-      background: rgba(255, 255, 255, 0.1);
-      border: none;
-    }
-
-    .preset-display {
-      font-size: 0.8rem;
-      font-weight: 600;
-      color: #a29bfe;
-      text-align: center;
-      flex: 1;
-    }
-
-    .controls {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 12px;
-    }
+    .controls { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
     .controls button { flex: 1; margin: 0 4px; }
 
     .progress-container {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      font-size: 0.75rem;
-      font-family: monospace;
-      color: rgba(255, 255, 255, 0.7);
-      margin-bottom: 14px;
+      display: flex; align-items: center; gap: 10px; font-size: 0.75rem;
+      font-family: monospace; color: rgba(255, 255, 255, 0.7); margin-bottom: 14px;
     }
-    .seek-bar {
-      flex-grow: 1;
-      accent-color: #a29bfe;
-      cursor: pointer;
-      height: 5px;
-      border-radius: 3px;
-    }
+    .seek-bar { flex-grow: 1; accent-color: #a29bfe; cursor: pointer; height: 5px; border-radius: 3px; }
 
     .playlist-container {
       border-top: 1px solid rgba(255, 255, 255, 0.1);
-      padding-top: 10px;
-      max-height: 110px;
-      overflow-y: auto;
+      padding-top: 10px; max-height: 110px; overflow-y: auto;
     }
     .playlist-container::-webkit-scrollbar { width: 4px; }
     .playlist-container::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 4px; }
-    
+
     .playlist-item {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 6px 8px;
-      margin-bottom: 4px;
-      background: rgba(255, 255, 255, 0.05);
-      border-radius: 6px;
-      font-size: 0.8rem;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 6px 8px; margin-bottom: 4px; background: rgba(255, 255, 255, 0.05);
+      border-radius: 6px; font-size: 0.8rem;
     }
     .playlist-item.active {
-      background: rgba(162, 155, 254, 0.25);
-      border: 1px solid rgba(162, 155, 254, 0.4);
-      font-weight: 600;
+      background: rgba(162, 155, 254, 0.25); border: 1px solid rgba(162, 155, 254, 0.4); font-weight: 600;
     }
-    .playlist-item-title {
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      overflow: hidden;
-      max-width: 180px;
-      cursor: pointer;
-    }
-    .playlist-item-btns { display: flex; gap: 4px; }
-    .playlist-item-btns button {
-      padding: 2px 6px;
-      font-size: 0.7rem;
-      border-radius: 4px;
-      background: rgba(255,255,255,0.1);
-    }
-    .delete-btn {
-      background: rgba(255, 99, 72, 0.3) !important;
-      border-color: rgba(255, 99, 72, 0.5) !important;
-    }
+    .playlist-item-title { text-overflow: ellipsis; white-space: nowrap; overflow: hidden; max-width: 260px; cursor: pointer; }
 
-    /* 3. 캐릭터 음성 위젯 */
-    .voice-panel { top: 25px; right: 25px; width: 220px; }
-    .voice-controls { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
-
-    /* 4. 투두리스트 위젯 */
-    .todo-panel {
-      bottom: 25px; right: 25px; width: 300px; max-height: 400px;
-      display: flex; flex-direction: column;
-    }
+    .todo-panel { bottom: 25px; right: 25px; width: 300px; max-height: 400px; display: flex; flex-direction: column; }
     .todo-input {
-      width: 100%; padding: 10px 14px; margin-top: 8px;
-      border-radius: 10px; border: 1px solid rgba(255,255,255,0.18);
-      background: rgba(0, 0, 0, 0.35); color: #fff; outline: none;
-      font-size: 0.9rem;
-      transition: border-color 0.2s;
+      width: 100%; padding: 10px 14px; margin-top: 8px; border-radius: 10px;
+      border: 1px solid rgba(255,255,255,0.18); background: rgba(0, 0, 0, 0.35);
+      color: #fff; outline: none; font-size: 0.9rem;
     }
-    .todo-input:focus { border-color: rgba(162, 155, 254, 0.6); }
-    .todo-list {
-      list-style: none; margin-top: 12px; overflow-y: auto; max-height: 230px;
-      padding-right: 4px;
-    }
-    .todo-list::-webkit-scrollbar { width: 4px; }
-    .todo-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 4px; }
+    .todo-list { list-style: none; margin-top: 12px; overflow-y: auto; max-height: 230px; padding-right: 4px; }
     .todo-list li {
-      padding: 8px 12px; margin-bottom: 6px;
-      background: rgba(255,255,255,0.06);
-      border-radius: 8px; cursor: pointer;
-      display: flex; justify-content: space-between; align-items: center;
-      font-size: 0.88rem; transition: background 0.2s;
+      padding: 8px 12px; margin-bottom: 6px; background: rgba(255,255,255,0.06);
+      border-radius: 8px; cursor: pointer; display: flex; justify-content: space-between; align-items: center;
+      font-size: 0.88rem;
     }
-    .todo-list li:hover { background: rgba(255,255,255,0.12); }
     .todo-list li.done { text-decoration: line-through; opacity: 0.45; }
-    .todo-del-btn {
-      background: none; border: none; color: #ff6b6b; font-size: 0.8rem; padding: 2px 4px;
-    }
-
-    input[type="file"] { display: none; }
+    .todo-del-btn { background: none; border: none; color: #ff6b6b; font-size: 0.8rem; }
   </style>
 </head>
 <body>
 
-  <!-- 1시간 메인 기본 배경 영상 -->
   <video id="bg-video" autoplay loop muted>
     <source src="background.mp4" type="video/mp4">
   </video>
 
-  <!-- 플리 MP4 영상 레이어 -->
   <video id="playlist-video"></video>
 
   <!-- 1. 타이머 -->
@@ -323,26 +212,13 @@
     </div>
   </div>
 
-  <!-- 2. 캐릭터 음성 패널 -->
-  <div class="widget voice-panel">
-    <div class="widget-title">VOICE INTERACTION</div>
-    <div class="voice-controls">
-      <button id="voice-btn">💬 캐릭터 음성 재생</button>
-      <label class="btn-label file-select-btn" for="voice-file-input">📂 음성 파일 선택</label>
-      <input type="file" id="voice-file-input" accept="audio/*">
-    </div>
-    <audio id="voice-player"></audio>
-  </div>
-
-  <!-- 3. MP4 비디오 플리 플레이어 -->
+  <!-- 2. Google Drive 플레이어 -->
   <div class="widget music-panel">
     <div class="track-header">
-      <div class="track-info" id="track-title">재생할 MP4 영상을 선택하세요</div>
-      <label class="btn-label file-select-btn" for="video-file-input">🎬 MP4 추가</label>
-      <input type="file" id="video-file-input" accept="video/mp4,video/*" multiple>
+      <div class="track-info" id="track-title">구글 로그인이 필요합니다</div>
+      <button id="google-login-btn" class="google-btn">🌐 구글 로그인</button>
     </div>
 
-    <!-- 투명도 컨트롤 영역 -->
     <div class="video-settings">
       <div class="slider-area">
         <div class="slider-header-labels">
@@ -374,7 +250,7 @@
     <div class="playlist-container" id="playlist-list"></div>
   </div>
 
-  <!-- 4. 투두 리스트 -->
+  <!-- 3. 투두 리스트 -->
   <div class="widget todo-panel">
     <div class="widget-title">TO-DO LIST</div>
     <input type="text" id="todo-input" class="todo-input" placeholder="할 일을 입력 후 Enter">
@@ -385,7 +261,6 @@
     let playlist = [];
     let currentTrackIndex = 0;
 
-    const videoFileInput = document.getElementById('video-file-input');
     const playlistVideo = document.getElementById('playlist-video');
     const playBtn = document.getElementById('play-btn');
     const prevBtn = document.getElementById('prev-btn');
@@ -395,149 +270,50 @@
     const durationTimeEl = document.getElementById('duration-time');
     const seekBar = document.getElementById('seek-bar');
     const playlistListEl = document.getElementById('playlist-list');
+    const loginBtn = document.getElementById('google-login-btn');
 
     const timerDisplay = document.getElementById('timer-display');
     const timerStartBtn = document.getElementById('timer-start-btn');
     const timerResetBtn = document.getElementById('timer-reset-btn');
 
-    // 투명도 프리셋 데이터
-    const PRESETS = [
-      { name: "안보임", value: 0 },
-      { name: "어두움", value: 10 },
-      { name: "약간보임", value: 25 },
-      { name: "잘보임", value: 50 },
-      { name: "다보임", value: 100 }
-    ];
-    let currentPresetIdx = 3;
+    // 구글 로그인 처리
+    loginBtn.addEventListener('click', () => {
+      window.location.href = '/auth/login';
+    });
 
-    const opacitySlider = document.getElementById('opacitySlider');
-    const presetPrev = document.getElementById('preset-prev');
-    const presetNext = document.getElementById('preset-next');
-    const presetDisplay = document.getElementById('preset-display');
+    async function checkAuthAndLoadDrive() {
+      const res = await fetch('/api/user');
+      const user = await res.json();
 
-    function applyOpacity(val) {
-      playlistVideo.style.opacity = val / 100;
-      const nearest = PRESETS.reduce((prev, curr) => 
-        Math.abs(curr.value - val) < Math.abs(prev.value - val) ? curr : prev
-      );
-      if (val === nearest.value) {
-        presetDisplay.innerText = `${nearest.name} (${val}%)`;
-      } else {
-        presetDisplay.innerText = `${val}%`;
+      if (user.logged_in) {
+        loginBtn.style.display = 'none';
+        trackTitle.innerText = "구글 드라이브 읽는 중...";
+        fetchDrivePlaylist();
       }
     }
 
-    opacitySlider.addEventListener('input', (e) => applyOpacity(parseInt(e.target.value, 10)));
-    presetPrev.addEventListener('click', () => {
-      if (currentPresetIdx > 0) {
-        currentPresetIdx--;
-        opacitySlider.value = PRESETS[currentPresetIdx].value;
-        applyOpacity(PRESETS[currentPresetIdx].value);
-      }
-    });
-    presetNext.addEventListener('click', () => {
-      if (currentPresetIdx < PRESETS.length - 1) {
-        currentPresetIdx++;
-        opacitySlider.value = PRESETS[currentPresetIdx].value;
-        applyOpacity(PRESETS[currentPresetIdx].value);
-      }
-    });
-
-    function formatTime(seconds, includeHours = false) {
-      if (isNaN(seconds) || seconds < 0) seconds = 0;
-      const hrs = Math.floor(seconds / 3600);
-      const min = Math.floor((seconds % 3600) / 60);
-      const sec = Math.floor(seconds % 60);
-      return (includeHours || hrs > 0)
-        ? `${String(hrs).padStart(2, '0')}:${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}`
-        : `${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
-    }
-
-    // --- SQLite API 통신 함수 (Playlist) ---
-    async function fetchPlaylist() {
+    async function fetchDrivePlaylist() {
       try {
-        const res = await fetch('/api/playlist');
+        const res = await fetch('/api/drive/playlist');
         const data = await res.json();
-        
-        // 데이터 전처리
+
         playlist = [];
         for (const item of data) {
-          const duration = await getVideoDuration(item.file_path);
           playlist.push({
             id: item.id,
             title: item.title,
-            src: item.file_path,
-            duration: duration
+            src: item.file_path
           });
         }
-        
-        if (playlist.length > 0 && !playlistVideo.src) {
+
+        if (playlist.length > 0) {
           loadTrack(0);
         } else {
-          renderPlaylist();
-          updatePlaylistTimerUI();
+          trackTitle.innerText = "구글 드라이브에 MP4 파일이 없습니다";
         }
       } catch (err) {
-        console.error("플레이리스트 로드 실패:", err);
+        console.error("Drive 불러오기 실패:", err);
       }
-    }
-
-    videoFileInput.addEventListener('change', async (e) => {
-      const files = Array.from(e.target.files);
-      if (files.length === 0) return;
-
-      for (const file of files) {
-        const fileUrl = URL.createObjectURL(file);
-        const titleName = file.name.replace(/\.[^/.]+$/, "");
-        
-        // DB 저장
-        const res = await fetch('/api/playlist', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ title: titleName, file_path: fileUrl })
-        });
-
-        if (res.ok) {
-          const savedItem = await res.json();
-          const duration = await getVideoDuration(fileUrl);
-          playlist.push({
-            id: savedItem.id,
-            title: savedItem.title,
-            src: savedItem.file_path,
-            duration: duration
-          });
-        }
-      }
-
-      if (playlistVideo.paused && !playlistVideo.src && playlist.length > 0) {
-        loadTrack(playlist.length - files.length);
-      } else {
-        renderPlaylist();
-        updatePlaylistTimerUI();
-      }
-    });
-
-    async function deleteTrack(id, index) {
-      await fetch(`/api/playlist/${id}`, { method: 'DELETE' });
-      playlist.splice(index, 1);
-      if (currentTrackIndex >= playlist.length) currentTrackIndex = Math.max(0, playlist.length - 1);
-      if (playlist.length > 0) loadTrack(currentTrackIndex);
-      else {
-        playlistVideo.src = '';
-        playlistVideo.style.display = 'none';
-        trackTitle.innerText = "재생할 MP4 영상을 선택하세요";
-        renderPlaylist();
-      }
-    }
-
-    function getVideoDuration(src) {
-      return new Promise((resolve) => {
-        const tempVideo = document.createElement('video');
-        tempVideo.src = src;
-        tempVideo.preload = 'metadata';
-        tempVideo.addEventListener('loadedmetadata', () => resolve(tempVideo.duration));
-        tempVideo.addEventListener('error', () => resolve(0));
-      });
     }
 
     function loadTrack(index) {
@@ -547,7 +323,6 @@
       playlistVideo.style.display = 'block';
       trackTitle.innerText = playlist[index].title;
       renderPlaylist();
-      updatePlaylistTimerUI();
     }
 
     function renderPlaylist() {
@@ -555,59 +330,17 @@
       playlist.forEach((item, idx) => {
         const div = document.createElement('div');
         div.className = `playlist-item ${idx === currentTrackIndex ? 'active' : ''}`;
-        
-        div.innerHTML = `
-          <div class="playlist-item-title">${idx + 1}. ${item.title}</div>
-          <div class="playlist-item-btns">
-            <button onclick="moveTrack(${idx}, -1)">▲</button>
-            <button onclick="moveTrack(${idx}, 1)">▼</button>
-            <button class="delete-btn" onclick="deleteTrack(${item.id}, ${idx})">✕</button>
-          </div>
-        `;
-        
-        div.querySelector('.playlist-item-title').addEventListener('click', () => {
+        div.innerHTML = `<div class="playlist-item-title">${idx + 1}. ${item.title}</div>`;
+        div.addEventListener('click', () => {
           loadTrack(idx);
           playVideo();
         });
-
         playlistListEl.appendChild(div);
       });
     }
 
-    window.moveTrack = function(index, direction) {
-      const targetIndex = index + direction;
-      if (targetIndex < 0 || targetIndex >= playlist.length) return;
-
-      const temp = playlist[index];
-      playlist[index] = playlist[targetIndex];
-      playlist[targetIndex] = temp;
-
-      if (currentTrackIndex === index) currentTrackIndex = targetIndex;
-      else if (currentTrackIndex === targetIndex) currentTrackIndex = index;
-
-      renderPlaylist();
-      updatePlaylistTimerUI();
-    };
-
-    function getRemainingPlaylistTime() {
-      if (playlist.length === 0) return 0;
-      let remaining = (playlist[currentTrackIndex]?.duration || 0) - playlistVideo.currentTime;
-      for (let i = currentTrackIndex + 1; i < playlist.length; i++) {
-        remaining += playlist[i].duration || 0;
-      }
-      return Math.max(0, remaining);
-    }
-
-    function updatePlaylistTimerUI() {
-      const totalRemaining = getRemainingPlaylistTime();
-      timerDisplay.innerText = formatTime(totalRemaining, true);
-    }
-
     function playVideo() {
-      if (playlist.length === 0) {
-        alert('먼저 "MP4 추가" 버튼을 눌러 비디오를 선택해주세요!');
-        return;
-      }
+      if (playlist.length === 0) return;
       playlistVideo.play();
       playBtn.innerText = '❚❚ 일시정지';
       timerStartBtn.innerText = '❚❚ 일시정지';
@@ -624,22 +357,8 @@
       else pauseVideo();
     }
 
-    playlistVideo.addEventListener('loadedmetadata', () => {
-      seekBar.max = playlistVideo.duration;
-      durationTimeEl.innerText = formatTime(playlistVideo.duration);
-      updatePlaylistTimerUI();
-    });
-
-    playlistVideo.addEventListener('timeupdate', () => {
-      seekBar.value = playlistVideo.currentTime;
-      currentTimeEl.innerText = formatTime(playlistVideo.currentTime);
-      updatePlaylistTimerUI();
-    });
-
-    seekBar.addEventListener('input', () => {
-      playlistVideo.currentTime = seekBar.value;
-      updatePlaylistTimerUI();
-    });
+    playBtn.addEventListener('click', togglePlay);
+    timerStartBtn.addEventListener('click', togglePlay);
 
     prevBtn.addEventListener('click', () => {
       if (playlist.length === 0) return;
@@ -650,108 +369,60 @@
 
     nextBtn.addEventListener('click', () => {
       if (playlist.length === 0) return;
-      if (currentTrackIndex < playlist.length - 1) {
-        currentTrackIndex++;
-        loadTrack(currentTrackIndex);
-        playVideo();
-      } else {
-        pauseVideo();
-        playlistVideo.currentTime = 0;
-        updatePlaylistTimerUI();
-        alert("🎉 모든 영상 플리 재생이 완료되어 타이머가 종료되었습니다!");
-      }
+      currentTrackIndex = (currentTrackIndex + 1) % playlist.length;
+      loadTrack(currentTrackIndex);
+      playVideo();
     });
 
-    playlistVideo.addEventListener('ended', () => nextBtn.click());
-    playBtn.addEventListener('click', togglePlay);
-    timerStartBtn.addEventListener('click', togglePlay);
-
-    timerResetBtn.addEventListener('click', () => {
-      if (playlist.length === 0) return;
-      loadTrack(0);
-      playlistVideo.currentTime = 0;
-      updatePlaylistTimerUI();
-    });
-
-    // --- 음성 오디오 핸들링 ---
-    const voiceFileInput = document.getElementById('voice-file-input');
-    const voiceBtn = document.getElementById('voice-btn');
-    const voicePlayer = document.getElementById('voice-player');
-
-    voiceFileInput.addEventListener('change', (e) => {
-      const file = e.target.files[0];
-      if (file) {
-        voicePlayer.src = URL.createObjectURL(file);
-        alert(`음성 파일 "${file.name}" 설정 완료!`);
-      }
-    });
-
-    voiceBtn.addEventListener('click', () => {
-      if (!voicePlayer.src) {
-        alert('먼저 "음성 파일 선택" 버튼으로 음성 파일을 등록해주세요.');
-        return;
-      }
-      voicePlayer.currentTime = 0;
-      voicePlayer.play();
-    });
-
-    // --- SQLite API 통신 함수 (To-Do List) ---
+    // To-Do 처리
     const todoInput = document.getElementById('todo-input');
     const todoList = document.getElementById('todo-list');
 
     async function fetchTodos() {
-      try {
-        const res = await fetch('/api/todos');
-        const data = await res.json();
-        todoList.innerHTML = '';
+      const res = await fetch('/api/todos');
+      const data = await res.json();
+      todoList.innerHTML = '';
 
-        data.forEach(item => {
-          const li = document.createElement('li');
-          li.innerText = item.text;
-          if (item.done) li.classList.add('done');
-          
-          // 클릭 시 완료 토글 DB 업데이트
-          li.addEventListener('click', async (e) => {
-            if (e.target.tagName === 'BUTTON') return;
-            await fetch(`/api/todos/${item.id}`, { method: 'PUT' });
-            li.classList.toggle('done');
-          });
-
-          // 삭제 버튼
-          const delBtn = document.createElement('button');
-          delBtn.className = 'todo-del-btn';
-          delBtn.innerText = '✕';
-          delBtn.addEventListener('click', async () => {
-            await fetch(`/api/todos/${item.id}`, { method: 'DELETE' });
-            fetchTodos();
-          });
-
-          li.appendChild(delBtn);
-          todoList.appendChild(li);
+      data.forEach(item => {
+        const li = document.createElement('li');
+        li.innerText = item.text;
+        if (item.done) li.classList.add('done');
+        
+        li.addEventListener('click', async (e) => {
+          if (e.target.tagName === 'BUTTON') return;
+          await fetch(`/api/todos/${item.id}`, { method: 'PUT' });
+          li.classList.toggle('done');
         });
-      } catch (err) {
-        console.error("투두 로드 실패:", err);
-      }
+
+        const delBtn = document.createElement('button');
+        delBtn.className = 'todo-del-btn';
+        delBtn.innerText = '✕';
+        delBtn.addEventListener('click', async () => {
+          await fetch(`/api/todos/${item.id}`, { method: 'DELETE' });
+          fetchTodos();
+        });
+
+        li.appendChild(delBtn);
+        todoList.appendChild(li);
+      });
     }
 
     todoInput.addEventListener('keypress', async (e) => {
       if (e.key === 'Enter' && todoInput.value.trim() !== '') {
         const text = todoInput.value.trim();
-        const res = await fetch('/api/todos', {
+        await fetch('/api/todos', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ text: text, done: false })
         });
-        if (res.ok) {
-          todoInput.value = '';
-          fetchTodos();
-        }
+        todoInput.value = '';
+        fetchTodos();
       }
     });
 
-    // 페이지 진입 시 DB 데이터 불러오기
+    // 앱 초기화
+    checkAuthAndLoadDrive();
     fetchTodos();
-    fetchPlaylist();
   </script>
 </body>
 </html>
