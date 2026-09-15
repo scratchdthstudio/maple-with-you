@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Chill Space - YouTube Lo-Fi Workspace</title>
+  <title>Chill Space - Multi Playlist Lo-Fi Workspace</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
     body {
@@ -68,10 +68,7 @@
       border-color: rgba(255, 255, 255, 0.4);
       transform: translateY(-1px);
     }
-    button:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
 
     .widget-title {
       font-size: 0.8rem;
@@ -90,6 +87,16 @@
     .btn-group { display: flex; gap: 8px; justify-content: center; margin-top: 10px; }
 
     .music-panel { bottom: 25px; left: 25px; width: 380px; }
+    
+    .pl-selector-group {
+      display: flex; gap: 6px; margin-bottom: 10px; align-items: center;
+    }
+    .pl-select {
+      flex: 1; padding: 6px 10px; border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.2); background: rgba(0, 0, 0, 0.6);
+      color: #fff; font-size: 0.85rem; outline: none;
+    }
+
     .track-info {
       font-size: 0.95rem; font-weight: 600; color: #f1f5f9;
       text-overflow: ellipsis; white-space: nowrap; overflow: hidden; margin-bottom: 12px;
@@ -168,6 +175,14 @@
   <!-- 2. 유튜브 플레이어 패널 -->
   <div class="widget music-panel">
     <div class="widget-title">YOUTUBE LO-FI PLAYER</div>
+    
+    <!-- 플레이리스트 그룹 선택 영역 -->
+    <div class="pl-selector-group">
+      <select id="playlist-select" class="pl-select"></select>
+      <button id="create-pl-btn">+ 새 플리</button>
+      <button id="delete-pl-btn" class="del-btn" style="padding: 6px 10px;">삭제</button>
+    </div>
+
     <div class="track-info" id="track-title">재생할 영상 선택</div>
 
     <div class="video-settings">
@@ -202,12 +217,13 @@
   <script src="https://www.youtube.com/iframe_api"></script>
   <script>
     let player;
+    let playlists = [];
+    let currentPlaylistId = 1;
     let playlist = [];
     let currentTrackIndex = 0;
     let isPlaying = false;
     let timerInterval = null;
 
-    // 초를 HH:MM:SS 포맷으로 변환
     function formatTime(seconds) {
       if (isNaN(seconds) || seconds < 0) seconds = 0;
       const s = Math.floor(seconds);
@@ -217,26 +233,15 @@
       return `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
     }
 
-    // 유튜브 API 준비 시 호출
     function onYouTubeIframeAPIReady() {
       player = new YT.Player('player', {
         height: '100%',
         width: '100%',
-        playerVars: {
-          'autoplay': 0,
-          'controls': 0,
-          'disablekb': 1,
-          'fs': 0,
-          'rel': 0,
-          'modestbranding': 1
-        },
-        events: {
-          'onStateChange': onPlayerStateChange
-        }
+        playerVars: { 'autoplay': 0, 'controls': 0, 'disablekb': 1, 'fs': 0, 'rel': 0, 'modestbranding': 1 },
+        events: { 'onStateChange': onPlayerStateChange }
       });
     }
 
-    // 유튜브 영상 상태 변경 이벤트
     function onPlayerStateChange(event) {
       if (event.data === YT.PlayerState.PLAYING) {
         isPlaying = true;
@@ -253,25 +258,18 @@
       }
     }
 
-    // DB의 duration 데이터로 전체 남은 시간 계산
     function calculateTotalRemainingTime() {
       if (playlist.length === 0) return 0;
-
       const currentTrackDuration = playlist[currentTrackIndex]?.duration || (player ? player.getDuration() : 0);
       const currentTrackTime = player && player.getCurrentTime ? player.getCurrentTime() : 0;
 
-      // 1. 현재 재생 중인 트랙의 남은 시간
       let totalRemaining = Math.max(0, currentTrackDuration - currentTrackTime);
-
-      // 2. 이후 재생할 모든 트랙의 DB 저장 시간(duration) 합산
       for (let i = currentTrackIndex + 1; i < playlist.length; i++) {
         totalRemaining += (playlist[i].duration || 0);
       }
-
       return totalRemaining;
     }
 
-    // 타이머 루프 실행
     function startTimerLoop() {
       if (timerInterval) clearInterval(timerInterval);
       timerInterval = setInterval(() => {
@@ -295,16 +293,41 @@
       return (match && match[2].length === 11) ? match[2] : url;
     }
 
-    async function fetchPlaylist() {
-      const res = await fetch('/api/playlist');
+    // 플레이리스트 그룹 목록 로드
+    async function fetchPlaylists() {
+      const res = await fetch('/api/playlists');
+      playlists = await res.json();
+      
+      const selectEl = document.getElementById('playlist-select');
+      selectEl.innerHTML = '';
+      playlists.forEach(pl => {
+        const opt = document.createElement('option');
+        opt.value = pl.id;
+        opt.innerText = pl.name;
+        if (pl.id === currentPlaylistId) opt.selected = true;
+        selectEl.appendChild(opt);
+      });
+
+      if (playlists.length > 0 && !playlists.find(p => p.id === currentPlaylistId)) {
+        currentPlaylistId = playlists[0].id;
+      }
+      fetchPlaylistItems();
+    }
+
+    // 선택된 플레이리스트의 세부 항목 로드
+    async function fetchPlaylistItems() {
+      const res = await fetch(`/api/playlists/${currentPlaylistId}/items`);
       playlist = await res.json();
+      currentTrackIndex = 0;
       renderPlaylist();
 
       if (playlist.length > 0 && player && player.cueVideoById) {
         loadTrack(0, false);
+      } else if (playlist.length === 0) {
+        document.getElementById('track-title').innerText = "영상이 없습니다";
+        if (player && player.stopVideo) player.stopVideo();
       }
       
-      // 불러온 데이터 기준 타이머 초기 디스플레이 설정
       const totalRemaining = calculateTotalRemainingTime();
       document.getElementById('timer-display').innerText = formatTime(totalRemaining);
     }
@@ -343,12 +366,9 @@
     }
 
     function togglePlay() {
-      if (!player) return;
-      if (isPlaying) {
-        player.pauseVideo();
-      } else {
-        player.playVideo();
-      }
+      if (!player || playlist.length === 0) return;
+      if (isPlaying) player.pauseVideo();
+      else player.playVideo();
     }
 
     function nextTrack() {
@@ -369,23 +389,47 @@
       document.getElementById('timer-start-btn').innerText = text;
     }
 
-    // 이벤트 리스너
+    // 컨트롤 이벤트
     document.getElementById('play-btn').addEventListener('click', togglePlay);
     document.getElementById('timer-start-btn').addEventListener('click', togglePlay);
     document.getElementById('next-btn').addEventListener('click', nextTrack);
     document.getElementById('prev-btn').addEventListener('click', prevTrack);
 
-    // 타이머 리셋 버튼 (첫번째 트랙 0초 이동)
-    document.getElementById('timer-reset-btn').addEventListener('click', () => {
-      if (playlist.length > 0) {
-        loadTrack(0, isPlaying);
-        if (player && player.seekTo) {
-          player.seekTo(0);
-        }
-      }
+    // 드롭다운 변경 시 플레이리스트 교체
+    document.getElementById('playlist-select').addEventListener('change', (e) => {
+      currentPlaylistId = parseInt(e.target.value);
+      fetchPlaylistItems();
     });
 
-    // 영상 추가 버튼 (서버 분석 대기 처리)
+    // 새 플레이리스트 생성
+    document.getElementById('create-pl-btn').addEventListener('click', async () => {
+      const name = prompt("새 플레이리스트 이름을 입력하세요:");
+      if (!name) return;
+
+      const res = await fetch('/api/playlists', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name.trim() })
+      });
+      const data = await res.json();
+      currentPlaylistId = data.id;
+      fetchPlaylists();
+    });
+
+    // 플레이리스트 삭제
+    document.getElementById('delete-pl-btn').addEventListener('click', async () => {
+      if (playlists.length <= 1) {
+        alert("최소 하나의 플레이리스트는 유지되어야 합니다.");
+        return;
+      }
+      if (!confirm("현재 선택된 플레이리스트를 삭제하시겠습니까?")) return;
+
+      await fetch(`/api/playlists/${currentPlaylistId}`, { method: 'DELETE' });
+      currentPlaylistId = playlists[0].id;
+      fetchPlaylists();
+    });
+
+    // 현재 플레이리스트에 영상 추가
     document.getElementById('yt-add-btn').addEventListener('click', async () => {
       const input = document.getElementById('yt-url-input');
       const addBtn = document.getElementById('yt-add-btn');
@@ -398,36 +442,35 @@
       addBtn.disabled = true;
       addBtn.innerText = "분석 중...";
 
-      await fetch('/api/playlist', {
+      await fetch('/api/playlist/items', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: titleName, youtube_id: ytId })
+        body: JSON.stringify({ playlist_id: currentPlaylistId, title: titleName, youtube_id: ytId })
       });
 
       input.value = '';
       addBtn.disabled = false;
       addBtn.innerText = "+ 추가";
       
-      fetchPlaylist();
+      fetchPlaylistItems();
     });
 
-    async function deletePlaylistItem(id) {
-      await fetch(`/api/playlist/${id}`, { method: 'DELETE' });
-      fetchPlaylist();
+    async function deletePlaylistItem(itemId) {
+      await fetch(`/api/playlist/items/${itemId}`, { method: 'DELETE' });
+      fetchPlaylistItems();
     }
 
-    // 투명도 조절
+    // 투명도
     const opacitySlider = document.getElementById('opacitySlider');
     const opacityVal = document.getElementById('opacity-val');
     const ytWrapper = document.getElementById('yt-wrapper');
-
     opacitySlider.addEventListener('input', (e) => {
       const val = e.target.value;
       opacityVal.innerText = `${val}%`;
       ytWrapper.style.opacity = val / 100;
     });
 
-    // To-Do 로직
+    // To-Do
     const todoInput = document.getElementById('todo-input');
     const todoList = document.getElementById('todo-list');
 
@@ -473,7 +516,7 @@
     });
 
     setTimeout(() => {
-      fetchPlaylist();
+      fetchPlaylists();
       fetchTodos();
     }, 1000);
   </script>
