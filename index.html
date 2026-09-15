@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Chill Space - Google Drive Lo-Fi Workspace</title>
+  <title>Chill Space - YouTube Lo-Fi Workspace</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
     body {
@@ -21,15 +21,25 @@
       z-index: -2;
     }
 
-    #playlist-video {
+    /* 유튜브 임베드 컨테이너 (화면 전체 레이어) */
+    .yt-wrapper {
       position: absolute;
       top: 0; left: 0;
       width: 100vw; height: 100vh;
-      object-fit: cover;
       z-index: -1;
+      pointer-events: none;
       opacity: 0.5;
-      display: none;
       transition: opacity 0.15s ease;
+      overflow: hidden;
+    }
+    .yt-wrapper iframe {
+      width: 100vw;
+      height: 56.25vw; /* 16:9 비율 유지 */
+      min-height: 100vh;
+      min-width: 177.77vh;
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
     }
 
     .widget {
@@ -43,36 +53,23 @@
       box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
     }
 
-    button, .btn-label {
+    button {
       background: rgba(255, 255, 255, 0.12);
       border: 1px solid rgba(255, 255, 255, 0.25);
       color: #fff;
-      padding: 8px 16px;
+      padding: 8px 14px;
       border-radius: 10px;
       cursor: pointer;
       font-size: 0.85rem;
       font-weight: 500;
-      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 6px;
+      transition: all 0.2s ease;
     }
-    button:hover, .btn-label:hover {
+    button:hover {
       background: rgba(255, 255, 255, 0.25);
       border-color: rgba(255, 255, 255, 0.4);
       transform: translateY(-1px);
     }
 
-    /* 구글 로그인 전용 버튼 스타일 */
-    .google-btn {
-      background: #4285F4 !important;
-      border: none !important;
-      color: #fff !important;
-      font-weight: 600;
-    }
-
-    .timer-panel { top: 25px; left: 25px; width: 260px; text-align: center; }
     .widget-title {
       font-size: 0.8rem;
       text-transform: uppercase;
@@ -80,171 +77,116 @@
       color: rgba(255, 255, 255, 0.6);
       margin-bottom: 8px;
     }
+
+    .timer-panel { top: 25px; left: 25px; width: 260px; text-align: center; }
     .timer-display {
-      font-size: 2.5rem;
-      font-weight: 700;
+      font-size: 2.5rem; font-weight: 700;
       font-family: 'Courier New', Courier, monospace;
-      letter-spacing: 2px;
-      margin: 4px 0 6px 0;
-      color: #e2e8f0;
-      text-shadow: 0 2px 10px rgba(0,0,0,0.5);
+      letter-spacing: 2px; margin: 4px 0; color: #e2e8f0;
     }
-    .timer-subtext {
-      font-size: 0.75rem;
-      color: rgba(255, 255, 255, 0.5);
-      margin-bottom: 12px;
-    }
-    .btn-group { display: flex; gap: 8px; justify-content: center; }
+    .btn-group { display: flex; gap: 8px; justify-content: center; margin-top: 10px; }
 
     .music-panel { bottom: 25px; left: 25px; width: 380px; }
-    .track-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 12px;
-    }
     .track-info {
-      font-size: 0.95rem;
-      font-weight: 600;
-      color: #f1f5f9;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      overflow: hidden;
-      max-width: 220px;
+      font-size: 0.95rem; font-weight: 600; color: #f1f5f9;
+      text-overflow: ellipsis; white-space: nowrap; overflow: hidden; margin-bottom: 12px;
     }
 
     .video-settings {
-      background: rgba(0, 0, 0, 0.3);
-      border-radius: 12px;
-      padding: 12px 14px;
-      margin-bottom: 12px;
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
+      background: rgba(0, 0, 0, 0.3); border-radius: 12px;
+      padding: 12px; margin-bottom: 12px; border: 1px solid rgba(255, 255, 255, 0.1);
+      display: flex; flex-direction: column; gap: 8px;
     }
-
-    .slider-area { display: flex; flex-direction: column; gap: 4px; }
     .slider-header-labels { display: flex; justify-content: space-between; font-size: 0.75rem; color: rgba(255, 255, 255, 0.6); }
-
     .range-slider {
-      -webkit-appearance: none;
-      appearance: none;
-      width: 100%;
-      height: 5px;
-      border-radius: 3px;
-      background: rgba(255, 255, 255, 0.2);
-      outline: none;
-      cursor: pointer;
+      -webkit-appearance: none; width: 100%; height: 5px;
+      border-radius: 3px; background: rgba(255, 255, 255, 0.2); outline: none; cursor: pointer;
     }
     .range-slider::-webkit-slider-thumb {
-      -webkit-appearance: none;
-      appearance: none;
-      width: 16px; height: 16px; border-radius: 50%; background: #a29bfe; cursor: pointer;
+      -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%; background: #a29bfe;
     }
 
-    .preset-selector {
-      display: flex; align-items: center; justify-content: space-between;
-      background: rgba(0, 0, 0, 0.25); border-radius: 8px; padding: 4px;
-      border: 1px solid rgba(255, 255, 255, 0.08);
+    .yt-input-group { display: flex; gap: 6px; margin-bottom: 12px; }
+    .yt-input {
+      flex: 1; padding: 8px 12px; border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.2); background: rgba(0, 0, 0, 0.4);
+      color: #fff; font-size: 0.8rem; outline: none;
     }
-    .arrow-btn { padding: 4px 10px; font-size: 0.75rem; border-radius: 6px; background: rgba(255, 255, 255, 0.1); border: none; }
-    .preset-display { font-size: 0.8rem; font-weight: 600; color: #a29bfe; text-align: center; flex: 1; }
 
     .controls { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
     .controls button { flex: 1; margin: 0 4px; }
 
-    .progress-container {
-      display: flex; align-items: center; gap: 10px; font-size: 0.75rem;
-      font-family: monospace; color: rgba(255, 255, 255, 0.7); margin-bottom: 14px;
-    }
-    .seek-bar { flex-grow: 1; accent-color: #a29bfe; cursor: pointer; height: 5px; border-radius: 3px; }
-
     .playlist-container {
       border-top: 1px solid rgba(255, 255, 255, 0.1);
-      padding-top: 10px; max-height: 110px; overflow-y: auto;
+      padding-top: 10px; max-height: 120px; overflow-y: auto;
     }
-    .playlist-container::-webkit-scrollbar { width: 4px; }
-    .playlist-container::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 4px; }
-
     .playlist-item {
       display: flex; align-items: center; justify-content: space-between;
       padding: 6px 8px; margin-bottom: 4px; background: rgba(255, 255, 255, 0.05);
       border-radius: 6px; font-size: 0.8rem;
     }
-    .playlist-item.active {
-      background: rgba(162, 155, 254, 0.25); border: 1px solid rgba(162, 155, 254, 0.4); font-weight: 600;
-    }
-    .playlist-item-title { text-overflow: ellipsis; white-space: nowrap; overflow: hidden; max-width: 260px; cursor: pointer; }
+    .playlist-item.active { background: rgba(162, 155, 254, 0.25); border: 1px solid rgba(162, 155, 254, 0.4); }
+    .playlist-item-title { cursor: pointer; text-overflow: ellipsis; white-space: nowrap; overflow: hidden; max-width: 280px; }
+    .del-btn { background: none; border: none; color: #ff6b6b; cursor: pointer; font-size: 0.8rem; padding: 0 4px; }
 
     .todo-panel { bottom: 25px; right: 25px; width: 300px; max-height: 400px; display: flex; flex-direction: column; }
     .todo-input {
       width: 100%; padding: 10px 14px; margin-top: 8px; border-radius: 10px;
-      border: 1px solid rgba(255,255,255,0.18); background: rgba(0, 0, 0, 0.35);
-      color: #fff; outline: none; font-size: 0.9rem;
+      border: 1px solid rgba(255,255,255,0.18); background: rgba(0, 0, 0, 0.35); color: #fff; outline: none;
     }
-    .todo-list { list-style: none; margin-top: 12px; overflow-y: auto; max-height: 230px; padding-right: 4px; }
+    .todo-list { list-style: none; margin-top: 12px; overflow-y: auto; max-height: 230px; }
     .todo-list li {
       padding: 8px 12px; margin-bottom: 6px; background: rgba(255,255,255,0.06);
-      border-radius: 8px; cursor: pointer; display: flex; justify-content: space-between; align-items: center;
-      font-size: 0.88rem;
+      border-radius: 8px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; font-size: 0.88rem;
     }
     .todo-list li.done { text-decoration: line-through; opacity: 0.45; }
-    .todo-del-btn { background: none; border: none; color: #ff6b6b; font-size: 0.8rem; }
   </style>
 </head>
 <body>
 
+  <!-- 기본 배경 MP4 -->
   <video id="bg-video" autoplay loop muted>
     <source src="background.mp4" type="video/mp4">
   </video>
 
-  <video id="playlist-video"></video>
+  <!-- 유튜브 화면 레이어 -->
+  <div class="yt-wrapper" id="yt-wrapper">
+    <div id="player"></div>
+  </div>
 
   <!-- 1. 타이머 -->
   <div class="widget timer-panel">
-    <div class="widget-title">PLAYLIST TIMER</div>
+    <div class="widget-title">YOUTUBE TIMER</div>
     <div class="timer-display" id="timer-display">00:00:00</div>
-    <div class="timer-subtext" id="timer-subtext">플리 잔여 시간</div>
     <div class="btn-group">
-      <button id="timer-start-btn">▶ 재생 & 시작</button>
+      <button id="timer-start-btn">▶ 재생</button>
       <button id="timer-reset-btn">↺ 처음부터</button>
     </div>
   </div>
 
-  <!-- 2. Google Drive 플레이어 -->
+  <!-- 2. 유튜브 플레이어 패널 -->
   <div class="widget music-panel">
-    <div class="track-header">
-      <div class="track-info" id="track-title">구글 로그인이 필요합니다</div>
-      <button id="google-login-btn" class="google-btn">🌐 구글 로그인</button>
-    </div>
+    <div class="widget-title">YOUTUBE LO-FI PLAYER</div>
+    <div class="track-info" id="track-title">재생할 영상 선택</div>
 
     <div class="video-settings">
-      <div class="slider-area">
-        <div class="slider-header-labels">
-          <span>안보임</span>
-          <span>다보임</span>
-        </div>
-        <input type="range" id="opacitySlider" class="range-slider" min="0" max="100" value="50">
+      <div class="slider-header-labels">
+        <span>투명도 (영상 보임 정도)</span>
+        <span id="opacity-val">50%</span>
       </div>
-
-      <div class="preset-selector">
-        <button id="preset-prev" class="arrow-btn">◀</button>
-        <div id="preset-display" class="preset-display">잘보임 (50%)</div>
-        <button id="preset-next" class="arrow-btn">▶</button>
-      </div>
+      <input type="range" id="opacitySlider" class="range-slider" min="0" max="100" value="50">
     </div>
-    
+
+    <!-- 유튜브 링크 추가 입력을 위한 그룹 -->
+    <div class="yt-input-group">
+      <input type="text" id="yt-url-input" class="yt-input" placeholder="유튜브 URL 또는 ID 입력">
+      <button id="yt-add-btn">+ 추가</button>
+    </div>
+
     <div class="controls">
       <button id="prev-btn">◀ 이전</button>
       <button id="play-btn">▶ 재생</button>
       <button id="next-btn">다음 ▶</button>
-    </div>
-
-    <div class="progress-container">
-      <span id="current-time">00:00</span>
-      <input type="range" id="seek-bar" class="seek-bar" value="0" min="0" max="100" step="0.1">
-      <span id="duration-time">00:00</span>
     </div>
 
     <div class="playlist-container" id="playlist-list"></div>
@@ -253,128 +195,168 @@
   <!-- 3. 투두 리스트 -->
   <div class="widget todo-panel">
     <div class="widget-title">TO-DO LIST</div>
-    <input type="text" id="todo-input" class="todo-input" placeholder="할 일을 입력 후 Enter">
+    <input type="text" id="todo-input" class="todo-input" placeholder="할 일 입력 후 Enter">
     <ul id="todo-list" class="todo-list"></ul>
   </div>
 
+  <!-- YouTube IFrame Player API Script -->
+  <script src="https://www.youtube.com/iframe_api"></script>
   <script>
+    let player;
     let playlist = [];
     let currentTrackIndex = 0;
+    let isPlaying = false;
 
-    const playlistVideo = document.getElementById('playlist-video');
-    const playBtn = document.getElementById('play-btn');
-    const prevBtn = document.getElementById('prev-btn');
-    const nextBtn = document.getElementById('next-btn');
-    const trackTitle = document.getElementById('track-title');
-    const currentTimeEl = document.getElementById('current-time');
-    const durationTimeEl = document.getElementById('duration-time');
-    const seekBar = document.getElementById('seek-bar');
-    const playlistListEl = document.getElementById('playlist-list');
-    const loginBtn = document.getElementById('google-login-btn');
-
-    const timerDisplay = document.getElementById('timer-display');
-    const timerStartBtn = document.getElementById('timer-start-btn');
-    const timerResetBtn = document.getElementById('timer-reset-btn');
-
-    // 구글 로그인 처리
-    loginBtn.addEventListener('click', () => {
-      window.location.href = '/auth/login';
-    });
-
-    async function checkAuthAndLoadDrive() {
-      const res = await fetch('/api/user');
-      const user = await res.json();
-
-      if (user.logged_in) {
-        loginBtn.style.display = 'none';
-        trackTitle.innerText = "구글 드라이브 읽는 중...";
-        fetchDrivePlaylist();
-      }
-    }
-
-    async function fetchDrivePlaylist() {
-      try {
-        const res = await fetch('/api/drive/playlist');
-        const data = await res.json();
-
-        playlist = [];
-        for (const item of data) {
-          playlist.push({
-            id: item.id,
-            title: item.title,
-            src: item.file_path
-          });
+    // 유튜브 API 준비 완료 이벤트
+    function onYouTubeIframeAPIReady() {
+      player = new YT.Player('player', {
+        height: '100%',
+        width: '100%',
+        playerVars: {
+          'autoplay': 0,
+          'controls': 0,
+          'disablekb': 1,
+          'fs': 0,
+          'rel': 0,
+          'modestbranding': 1
+        },
+        events: {
+          'onStateChange': onPlayerStateChange
         }
-
-        if (playlist.length > 0) {
-          loadTrack(0);
-        } else {
-          trackTitle.innerText = "구글 드라이브에 MP4 파일이 없습니다";
-        }
-      } catch (err) {
-        console.error("Drive 불러오기 실패:", err);
-      }
-    }
-
-    function loadTrack(index) {
-      if (playlist.length === 0) return;
-      currentTrackIndex = index;
-      playlistVideo.src = playlist[index].src;
-      playlistVideo.style.display = 'block';
-      trackTitle.innerText = playlist[index].title;
-      renderPlaylist();
-    }
-
-    function renderPlaylist() {
-      playlistListEl.innerHTML = '';
-      playlist.forEach((item, idx) => {
-        const div = document.createElement('div');
-        div.className = `playlist-item ${idx === currentTrackIndex ? 'active' : ''}`;
-        div.innerHTML = `<div class="playlist-item-title">${idx + 1}. ${item.title}</div>`;
-        div.addEventListener('click', () => {
-          loadTrack(idx);
-          playVideo();
-        });
-        playlistListEl.appendChild(div);
       });
     }
 
-    function playVideo() {
-      if (playlist.length === 0) return;
-      playlistVideo.play();
-      playBtn.innerText = '❚❚ 일시정지';
-      timerStartBtn.innerText = '❚❚ 일시정지';
+    function onPlayerStateChange(event) {
+      if (event.data === YT.PlayerState.ENDED) {
+        nextTrack();
+      }
     }
 
-    function pauseVideo() {
-      playlistVideo.pause();
-      playBtn.innerText = '▶ 재생';
-      timerStartBtn.innerText = '▶ 재생 & 시작';
+    // 유튜브 ID 추출 함수 (URL 주소 또는 순수 ID 처리)
+    function extractYoutubeId(url) {
+      const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+      const match = url.match(regExp);
+      return (match && match[2].length === 11) ? match[2] : url;
+    }
+
+    // 플레이리스트 DB에서 불러오기
+    async function fetchPlaylist() {
+      const res = await fetch('/api/playlist');
+      playlist = await res.json();
+      renderPlaylist();
+
+      if (playlist.length > 0 && player && player.loadVideoById) {
+        loadTrack(0, false);
+      }
+    }
+
+    function renderPlaylist() {
+      const listEl = document.getElementById('playlist-list');
+      listEl.innerHTML = '';
+      playlist.forEach((item, idx) => {
+        const div = document.createElement('div');
+        div.className = `playlist-item ${idx === currentTrackIndex ? 'active' : ''}`;
+        div.innerHTML = `
+          <span class="playlist-item-title">${idx + 1}. ${item.title}</span>
+          <button class="del-btn" onclick="deletePlaylistItem(${item.id})">✕</button>
+        `;
+        div.querySelector('.playlist-item-title').addEventListener('click', () => {
+          loadTrack(idx, true);
+        });
+        listEl.appendChild(div);
+      });
+    }
+
+    function loadTrack(index, autoPlay = true) {
+      if (playlist.length === 0) return;
+      currentTrackIndex = index;
+      const track = playlist[index];
+      document.getElementById('track-title').innerText = track.title;
+      
+      if (player && player.loadVideoById) {
+        if (autoPlay) {
+          player.loadVideoById(track.youtube_id);
+          isPlaying = true;
+          updatePlayButtons();
+        } else {
+          player.cueVideoById(track.youtube_id);
+        }
+      }
+      renderPlaylist();
     }
 
     function togglePlay() {
-      if (playlistVideo.paused) playVideo();
-      else pauseVideo();
+      if (!player) return;
+      if (isPlaying) {
+        player.pauseVideo();
+        isPlaying = false;
+      } else {
+        player.playVideo();
+        isPlaying = true;
+      }
+      updatePlayButtons();
     }
 
-    playBtn.addEventListener('click', togglePlay);
-    timerStartBtn.addEventListener('click', togglePlay);
-
-    prevBtn.addEventListener('click', () => {
-      if (playlist.length === 0) return;
-      currentTrackIndex = (currentTrackIndex - 1 + playlist.length) % playlist.length;
-      loadTrack(currentTrackIndex);
-      playVideo();
-    });
-
-    nextBtn.addEventListener('click', () => {
+    function nextTrack() {
       if (playlist.length === 0) return;
       currentTrackIndex = (currentTrackIndex + 1) % playlist.length;
-      loadTrack(currentTrackIndex);
-      playVideo();
+      loadTrack(currentTrackIndex, true);
+    }
+
+    function prevTrack() {
+      if (playlist.length === 0) return;
+      currentTrackIndex = (currentTrackIndex - 1 + playlist.length) % playlist.length;
+      loadTrack(currentTrackIndex, true);
+    }
+
+    function updatePlayButtons() {
+      const text = isPlaying ? '❚❚ 일시정지' : '▶ 재생';
+      document.getElementById('play-btn').innerText = text;
+      document.getElementById('timer-start-btn').innerText = text;
+    }
+
+    // 엘리먼트 이벤트 리스너 설정
+    document.getElementById('play-btn').addEventListener('click', togglePlay);
+    document.getElementById('timer-start-btn').addEventListener('click', togglePlay);
+    document.getElementById('next-btn').addEventListener('click', nextTrack);
+    document.getElementById('prev-btn').addEventListener('click', prevTrack);
+
+    // 유튜브 항목 추가 버튼
+    document.getElementById('yt-add-btn').addEventListener('click', async () => {
+      const input = document.getElementById('yt-url-input');
+      const val = input.value.trim();
+      if (!val) return;
+
+      const ytId = extractYoutubeId(val);
+      const titleName = `YouTube Track (${ytId})`;
+
+      await fetch('/api/playlist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: titleName, youtube_id: ytId })
+      });
+
+      input.value = '';
+      fetchPlaylist();
     });
 
-    // To-Do 처리
+    async function deletePlaylistItem(id) {
+      await fetch(`/api/playlist/${id}`, { method: 'DELETE' });
+      fetchPlaylist();
+    }
+
+    // 배경 영상 투명도 조절
+    const opacitySlider = document.getElementById('opacitySlider');
+    const opacityVal = document.getElementById('opacity-val');
+    const ytWrapper = document.getElementById('yt-wrapper');
+
+    opacitySlider.addEventListener('input', (e) => {
+      const val = e.target.value;
+      opacityVal.innerText = `${val}%`;
+      ytWrapper.style.opacity = val / 100;
+    });
+
+    // To-Do API 기능
     const todoInput = document.getElementById('todo-input');
     const todoList = document.getElementById('todo-list');
 
@@ -382,7 +364,6 @@
       const res = await fetch('/api/todos');
       const data = await res.json();
       todoList.innerHTML = '';
-
       data.forEach(item => {
         const li = document.createElement('li');
         li.innerText = item.text;
@@ -395,7 +376,7 @@
         });
 
         const delBtn = document.createElement('button');
-        delBtn.className = 'todo-del-btn';
+        delBtn.className = 'del-btn';
         delBtn.innerText = '✕';
         delBtn.addEventListener('click', async () => {
           await fetch(`/api/todos/${item.id}`, { method: 'DELETE' });
@@ -420,9 +401,11 @@
       }
     });
 
-    // 앱 초기화
-    checkAuthAndLoadDrive();
-    fetchTodos();
+    // 초기화 실행
+    setTimeout(() => {
+      fetchPlaylist();
+      fetchTodos();
+    }, 1000);
   </script>
 </body>
 </html>
