@@ -68,6 +68,10 @@
       border-color: rgba(255, 255, 255, 0.4);
       transform: translateY(-1px);
     }
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
 
     .widget-title {
       font-size: 0.8rem;
@@ -203,8 +207,9 @@
     let isPlaying = false;
     let timerInterval = null;
 
-    // 초를 HH:MM:SS 포맷 문자열로 변환
+    // 초를 HH:MM:SS 포맷으로 변환
     function formatTime(seconds) {
+      if (isNaN(seconds) || seconds < 0) seconds = 0;
       const s = Math.floor(seconds);
       const hrs = Math.floor(s / 3600);
       const mins = Math.floor((s % 3600) / 60);
@@ -231,7 +236,7 @@
       });
     }
 
-    // 유튜브 영상 상태 변경에 따른 타이머 및 버튼 연동
+    // 유튜브 영상 상태 변경 이벤트
     function onPlayerStateChange(event) {
       if (event.data === YT.PlayerState.PLAYING) {
         isPlaying = true;
@@ -248,13 +253,31 @@
       }
     }
 
-    // 타이머 1초 주기 동기화 갱신
+    // DB의 duration 데이터로 전체 남은 시간 계산
+    function calculateTotalRemainingTime() {
+      if (playlist.length === 0) return 0;
+
+      const currentTrackDuration = playlist[currentTrackIndex]?.duration || (player ? player.getDuration() : 0);
+      const currentTrackTime = player && player.getCurrentTime ? player.getCurrentTime() : 0;
+
+      // 1. 현재 재생 중인 트랙의 남은 시간
+      let totalRemaining = Math.max(0, currentTrackDuration - currentTrackTime);
+
+      // 2. 이후 재생할 모든 트랙의 DB 저장 시간(duration) 합산
+      for (let i = currentTrackIndex + 1; i < playlist.length; i++) {
+        totalRemaining += (playlist[i].duration || 0);
+      }
+
+      return totalRemaining;
+    }
+
+    // 타이머 루프 실행
     function startTimerLoop() {
       if (timerInterval) clearInterval(timerInterval);
       timerInterval = setInterval(() => {
         if (player && player.getCurrentTime) {
-          const current = player.getCurrentTime();
-          document.getElementById('timer-display').innerText = formatTime(current);
+          const totalRemaining = calculateTotalRemainingTime();
+          document.getElementById('timer-display').innerText = formatTime(totalRemaining);
         }
       }, 500);
     }
@@ -280,6 +303,10 @@
       if (playlist.length > 0 && player && player.cueVideoById) {
         loadTrack(0, false);
       }
+      
+      // 불러온 데이터 기준 타이머 초기 디스플레이 설정
+      const totalRemaining = calculateTotalRemainingTime();
+      document.getElementById('timer-display').innerText = formatTime(totalRemaining);
     }
 
     function renderPlaylist() {
@@ -342,27 +369,34 @@
       document.getElementById('timer-start-btn').innerText = text;
     }
 
-    // 엘리먼트 이벤트
+    // 이벤트 리스너
     document.getElementById('play-btn').addEventListener('click', togglePlay);
     document.getElementById('timer-start-btn').addEventListener('click', togglePlay);
     document.getElementById('next-btn').addEventListener('click', nextTrack);
     document.getElementById('prev-btn').addEventListener('click', prevTrack);
 
-    // 타이머 리셋 (영상 0초로 다시 이동)
+    // 타이머 리셋 버튼 (첫번째 트랙 0초 이동)
     document.getElementById('timer-reset-btn').addEventListener('click', () => {
-      if (player && player.seekTo) {
-        player.seekTo(0);
-        document.getElementById('timer-display').innerText = "00:00:00";
+      if (playlist.length > 0) {
+        loadTrack(0, isPlaying);
+        if (player && player.seekTo) {
+          player.seekTo(0);
+        }
       }
     });
 
+    // 영상 추가 버튼 (서버 분석 대기 처리)
     document.getElementById('yt-add-btn').addEventListener('click', async () => {
       const input = document.getElementById('yt-url-input');
+      const addBtn = document.getElementById('yt-add-btn');
       const val = input.value.trim();
       if (!val) return;
 
       const ytId = extractYoutubeId(val);
       const titleName = `YouTube Track (${ytId})`;
+
+      addBtn.disabled = true;
+      addBtn.innerText = "분석 중...";
 
       await fetch('/api/playlist', {
         method: 'POST',
@@ -371,6 +405,9 @@
       });
 
       input.value = '';
+      addBtn.disabled = false;
+      addBtn.innerText = "+ 추가";
+      
       fetchPlaylist();
     });
 
@@ -390,7 +427,7 @@
       ytWrapper.style.opacity = val / 100;
     });
 
-    // To-Do 처리
+    // To-Do 로직
     const todoInput = document.getElementById('todo-input');
     const todoList = document.getElementById('todo-list');
 
