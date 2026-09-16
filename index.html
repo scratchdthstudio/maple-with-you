@@ -150,18 +150,19 @@
 
     .todo-panel { bottom: 25px; right: 25px; width: 300px; max-height: 400px; display: flex; flex-direction: column; }
     .signup-panel { top: 25px; right: 25px; width: 260px; }
-    .signup-form {
+    .login-panel { top: 250px; right: 25px; width: 260px; }
+    .signup-form, .login-form {
       display: flex; flex-direction: column; gap: 8px; margin-top: 8px;
     }
-    .signup-form input {
+    .signup-form input, .login-form input {
       width: 100%; padding: 10px 12px; border-radius: 10px;
       border: 1px solid rgba(255,255,255,0.18); background: rgba(0, 0, 0, 0.35); color: #fff; outline: none;
     }
-    .signup-status {
+    .signup-status, .login-status {
       margin-top: 8px; min-height: 20px; font-size: 0.8rem; color: rgba(255,255,255,0.8);
     }
-    .signup-status.success { color: #7ef0a8; }
-    .signup-status.error { color: #ff8f8f; }
+    .signup-status.success, .login-status.success { color: #7ef0a8; }
+    .signup-status.error, .login-status.error { color: #ff8f8f; }
     .todo-input {
       width: 100%; padding: 10px 14px; margin-top: 8px; border-radius: 10px;
       border: 1px solid rgba(255,255,255,0.18); background: rgba(0, 0, 0, 0.35); color: #fff; outline: none;
@@ -290,7 +291,18 @@
     <div id="signup-status" class="signup-status"></div>
   </div>
 
-  <!-- 4. 투두 리스트 패널 -->
+  <!-- 4. 로그인 패널 -->
+  <div class="widget login-panel main-widget">
+    <div class="widget-title">LOG IN</div>
+    <form id="login-form" class="login-form">
+      <input type="text" id="login-username" placeholder="아이디 또는 이메일" required>
+      <input type="password" id="login-password" placeholder="비밀번호" required>
+      <button type="submit">로그인</button>
+    </form>
+    <div id="login-status" class="login-status"></div>
+  </div>
+
+  <!-- 5. 투두 리스트 패널 -->
   <div class="widget todo-panel main-widget">
     <div class="widget-title">TO-DO LIST</div>
     <input type="text" id="todo-input" class="todo-input" placeholder="할 일 입력 후 Enter">
@@ -615,6 +627,8 @@
 
     const signupForm = document.getElementById('signup-form');
     const signupStatus = document.getElementById('signup-status');
+    const loginForm = document.getElementById('login-form');
+    const loginStatus = document.getElementById('login-status');
 
     signupForm.addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -651,6 +665,43 @@
       } catch (error) {
         signupStatus.textContent = '서버 연결에 실패했습니다.';
         signupStatus.className = 'signup-status error';
+      }
+    });
+
+    loginForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const username = document.getElementById('login-username').value.trim();
+      const password = document.getElementById('login-password').value.trim();
+
+      if (!username || !password) {
+        loginStatus.textContent = '아이디와 비밀번호를 모두 입력해주세요.';
+        loginStatus.className = 'login-status error';
+        return;
+      }
+
+      loginStatus.textContent = '로그인 중...';
+      loginStatus.className = 'login-status';
+
+      try {
+        const res = await fetch('/api/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+          loginStatus.textContent = `${data.username}님, 로그인 성공!`;
+          loginStatus.className = 'login-status success';
+          loginForm.reset();
+        } else {
+          loginStatus.textContent = data.message;
+          loginStatus.className = 'login-status error';
+        }
+      } catch (error) {
+        loginStatus.textContent = '서버 연결에 실패했습니다.';
+        loginStatus.className = 'login-status error';
       }
     });
 

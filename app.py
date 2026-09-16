@@ -96,6 +96,10 @@ class SignupRequest(BaseModel):
     email: str
     password: str
 
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
 # ----------------- User Signup API -----------------
 @app.post("/api/signup")
 def signup(data: SignupRequest):
@@ -127,6 +131,37 @@ def signup(data: SignupRequest):
     conn.close()
 
     return {"success": True, "message": "회원가입이 완료되었습니다."}
+
+@app.post("/api/login")
+def login(data: LoginRequest):
+    username = data.username.strip()
+    password = data.password.strip()
+
+    if not username or not password:
+        return {"success": False, "message": "아이디와 비밀번호를 모두 입력해주세요."}
+
+    conn = sqlite3.connect("chill_space.db")
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT id, username, password_hash FROM users WHERE username = ? OR email = ?",
+        (username, username.lower())
+    )
+    row = cursor.fetchone()
+    conn.close()
+
+    if not row:
+        return {"success": False, "message": "존재하지 않는 계정입니다."}
+
+    user_id, saved_username, saved_hash = row
+    if saved_hash != hash_password(password):
+        return {"success": False, "message": "비밀번호가 올바르지 않습니다."}
+
+    return {
+        "success": True,
+        "message": "로그인 성공",
+        "user_id": user_id,
+        "username": saved_username,
+    }
 
 # ----------------- Playlist Group API -----------------
 @app.get("/api/playlists")
