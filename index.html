@@ -50,13 +50,13 @@
       padding: 20px 24px;
       border: 1px solid rgba(255, 255, 255, 0.12);
       box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
-      transition: opacity 0.3s ease, transform 0.3s ease, visibility 0.3s;
+      transition: opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1), transform 0.35s cubic-bezier(0.4, 0, 0.2, 1), visibility 0.35s;
     }
 
-    /* UI 숨김 클래스 */
+    /* UI 숨김 상태 스타일 */
     .widget.hidden-ui {
       opacity: 0 !important;
-      transform: translateY(10px) !important;
+      transform: translateY(16px) !important;
       pointer-events: none !important;
       visibility: hidden;
     }
@@ -160,28 +160,47 @@
     }
     .todo-list li.done { text-decoration: line-through; opacity: 0.45; }
 
-    /* UI 온/오프 토글 전용 하단 버튼 */
-    .toggle-ui-btn {
+    /* 화면 중하단 화살표 토글 버튼 */
+    .arrow-toggle-btn {
       position: absolute;
-      bottom: 25px;
-      right: 25px;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
       z-index: 100;
-      background: rgba(18, 18, 28, 0.75);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      color: #fff;
-      padding: 10px 16px;
-      border-radius: 30px;
-      font-size: 0.85rem;
-      font-weight: 600;
-      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: rgba(18, 18, 28, 0.55);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      color: rgba(255, 255, 255, 0.85);
       display: flex;
       align-items: center;
-      gap: 6px;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     }
-    .toggle-ui-btn:hover {
-      background: rgba(255, 255, 255, 0.25);
+    .arrow-toggle-btn:hover {
+      background: rgba(255, 255, 255, 0.22);
+      border-color: rgba(255, 255, 255, 0.35);
+      color: #fff;
+      transform: translateX(-50%) scale(1.08);
+    }
+    .arrow-icon {
+      width: 20px;
+      height: 20px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2.2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    /* UI 숨김 시 화살표 회전 */
+    .arrow-toggle-btn.is-hidden .arrow-icon {
+      transform: rotate(180deg);
     }
   </style>
 </head>
@@ -195,9 +214,11 @@
     <div id="player"></div>
   </div>
 
-  <!-- UI 토글 전용 독립 버튼 (우측 하단) -->
-  <button id="toggle-ui-btn" class="toggle-ui-btn">
-    <span id="toggle-icon">🙈</span> <span id="toggle-text">UI 숨기기</span>
+  <!-- 화면 중하단 화살표 버튼 -->
+  <button id="toggle-ui-btn" class="arrow-toggle-btn" title="UI 토글">
+    <svg class="arrow-icon" viewBox="0 0 24 24">
+      <polyline points="6 9 12 15 18 9"></polyline>
+    </svg>
   </button>
 
   <!-- 1. 타이머 패널 -->
@@ -262,10 +283,8 @@
     let timerInterval = null;
     let isUiVisible = true;
 
-    // UI 숨기기 / 보이기 토글 로직
+    // 중하단 화살표 버튼 토글
     const toggleUiBtn = document.getElementById('toggle-ui-btn');
-    const toggleIcon = document.getElementById('toggle-icon');
-    const toggleText = document.getElementById('toggle-text');
     const mainWidgets = document.querySelectorAll('.main-widget');
 
     toggleUiBtn.addEventListener('click', () => {
@@ -280,11 +299,9 @@
       });
 
       if (isUiVisible) {
-        toggleIcon.innerText = "🙈";
-        toggleText.innerText = "UI 숨기기";
+        toggleUiBtn.classList.remove('is-hidden');
       } else {
-        toggleIcon.innerText = "👁️";
-        toggleText.innerText = "UI 켜기";
+        toggleUiBtn.classList.add('is-hidden');
       }
     });
 
