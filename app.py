@@ -2,6 +2,7 @@ import os
 import sqlite3
 import re
 import urllib.request
+import hashlib
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -12,6 +13,16 @@ app = FastAPI()
 def init_db():
     conn = sqlite3.connect("chill_space.db")
     cursor = conn.cursor()
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT NOT NULL UNIQUE,
+            email TEXT NOT NULL UNIQUE,
+            password_hash TEXT NOT NULL,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
     
     # To-Do 테이블
     cursor.execute("""
@@ -49,6 +60,10 @@ def init_db():
 
 init_db()
 
+
+def hash_password(password: str) -> str:
+    return hashlib.sha256(password.encode("utf-8")).hexdigest()
+
 def fetch_youtube_duration(youtube_id: str) -> int:
     try:
         url = f"https://www.youtube.com/watch?v={youtube_id}"
@@ -75,6 +90,43 @@ class PlaylistItem(BaseModel):
 class TodoItem(BaseModel):
     text: str
     done: bool = False
+
+class SignupRequest(BaseModel):
+    username: str
+    email: str
+    password: str
+
+# ----------------- User Signup API -----------------
+@app.post("/api/signup")
+def signup(data: SignupRequest):
+    username = data.username.strip()
+    email = data.email.strip().lower()
+    password = data.password.strip()
+
+    if len(username) < 2:
+        return {"success": False, "message": "아이디는 2자 이상이어야 합니다."}
+    if "@" not in email or "." not in email:
+        return {"success": False, "message": "올바른 이메일 형식을 입력해주세요."}
+    if len(password) < 6:
+        return {"success": False, "message": "비밀번호는 6자 이상이어야 합니다."}
+
+    conn = sqlite3.connect("chill_space.db")
+    cursor = conn.cursor()
+    cursor.execute("SELECT id FROM users WHERE username = ? OR email = ?", (username, email))
+    existing = cursor.fetchone()
+
+    if existing:
+        conn.close()
+        return {"success": False, "message": "이미 사용 중인 아이디 또는 이메일입니다."}
+
+    cursor.execute(
+        "INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)",
+        (username, email, hash_password(password))
+    )
+    conn.commit()
+    conn.close()
+
+    return {"success": True, "message": "회원가입이 완료되었습니다."}
 
 # ----------------- Playlist Group API -----------------
 @app.get("/api/playlists")
