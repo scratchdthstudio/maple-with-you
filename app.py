@@ -3,17 +3,24 @@ import sqlite3
 import re
 import urllib.request
 import hashlib
-from fastapi import FastAPI
+from typing import Optional
+from fastapi import FastAPI, Query
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 import uvicorn
 
 app = FastAPI()
 
-def init_db():
+def get_db():
     conn = sqlite3.connect("chill_space.db")
+    conn.execute("PRAGMA foreign_keys = ON")
+    return conn
+
+def init_db():
+    conn = get_db()
     cursor = conn.cursor()
 
+    # 회원 테이블
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -24,20 +31,13 @@ def init_db():
         )
     """)
     
-    # To-Do 테이블
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS todos (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            text TEXT NOT NULL,
-            done INTEGER DEFAULT 0
-        )
-    """)
-    
-    # 플레이리스트 그룹 테이블
+    # 플레이리스트 그룹 테이블 (user_id 연동)
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS playlists (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL UNIQUE
+            user_id INTEGER NOT NULL,
+            name TEXT NOT NULL,
+            FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
         )
     """)
     
@@ -52,14 +52,22 @@ def init_db():
             FOREIGN KEY (playlist_id) REFERENCES playlists (id) ON DELETE CASCADE
         )
     """)
-    
-    # 기본 플레이리스트 생성
-    cursor.execute("INSERT OR IGNORE INTO playlists (id, name) VALUES (1, '기본 플레이리스트')")
+
+    # To-Do 테이블 (user_id 연동)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS todos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            text TEXT NOT NULL,
+            done INTEGER DEFAULT 0,
+            FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+        )
+    """)
+
     conn.commit()
     conn.close()
 
 init_db()
-
 
 def hash_password(password: str) -> str:
     return hashlib.sha256(password.encode("utf-8")).hexdigest()
@@ -79,18 +87,7 @@ def fetch_youtube_duration(youtube_id: str) -> int:
         print(f"시간 추출 실패: {e}")
     return 0
 
-class CreatePlaylist(BaseModel):
-    name: str
-
-class PlaylistItem(BaseModel):
-    playlist_id: int
-    title: str
-    youtube_id: str
-
-class TodoItem(BaseModel):
-    text: str
-    done: bool = False
-
+# --- Pydantic Schemas ---
 class SignupRequest(BaseModel):
     username: str
     email: str
@@ -100,7 +97,21 @@ class LoginRequest(BaseModel):
     username: str
     password: str
 
-# ----------------- User Signup API -----------------
+class CreatePlaylist(BaseModel):
+    user_id: int
+    name: str
+
+class PlaylistItem(BaseModel):
+    playlist_id: int
+    title: str
+    youtube_id: str
+
+class TodoItem(BaseModel):
+    user_id: int
+    text: str
+    done: bool = False
+
+# ----------------- Auth API -----------------
 @app.post("/api/signup")
 def signup(data: SignupRequest):
     username = data.username.strip()
@@ -114,12 +125,10 @@ def signup(data: SignupRequest):
     if len(password) < 6:
         return {"success": False, "message": "비밀번호는 6자 이상이어야 합니다."}
 
-    conn = sqlite3.connect("chill_space.db")
+    conn = get_db()
     cursor = conn.cursor()
     cursor.execute("SELECT id FROM users WHERE username = ? OR email = ?", (username, email))
-    existing = cursor.fetchone()
-
-    if existing:
+    if cursor.fetchone():
         conn.close()
         return {"success": False, "message": "이미 사용 중인 아이디 또는 이메일입니다."}
 
@@ -127,10 +136,14 @@ def signup(data: SignupRequest):
         "INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)",
         (username, email, hash_password(password))
     )
+    user_id = cursor.lastrowid
+
+    # 가입한 유저에게 기본 플레이리스트 생성 연동
+    cursor.execute("INSERT INTO playlists (user_id, name) VALUES (?, ?)", (user_id, "기본 플레이리스트"))
     conn.commit()
     conn.close()
 
-    return {"success": True, "message": "회원가입이 완료되었습니다."}
+    return {"success": True, "message": "회원가입이 완료되었습니다. 로그인 해주세요."}
 
 @app.post("/api/login")
 def login(data: LoginRequest):
@@ -138,9 +151,9 @@ def login(data: LoginRequest):
     password = data.password.strip()
 
     if not username or not password:
-        return {"success": False, "message": "아이디와 비밀번호를 모두 입력해주세요."}
+        return {"success": False, "message": "아이디와 비밀번호를 입력해주세요."}
 
-    conn = sqlite3.connect("chill_space.db")
+    conn = get_db()
     cursor = conn.cursor()
     cursor.execute(
         "SELECT id, username, password_hash FROM users WHERE username = ? OR email = ?",
@@ -149,45 +162,41 @@ def login(data: LoginRequest):
     row = cursor.fetchone()
     conn.close()
 
-    if not row:
-        return {"success": False, "message": "존재하지 않는 계정입니다."}
-
-    user_id, saved_username, saved_hash = row
-    if saved_hash != hash_password(password):
-        return {"success": False, "message": "비밀번호가 올바르지 않습니다."}
+    if not row or row[2] != hash_password(password):
+        return {"success": False, "message": "아이디 또는 비밀번호가 올바르지 않습니다."}
 
     return {
         "success": True,
         "message": "로그인 성공",
-        "user_id": user_id,
-        "username": saved_username,
+        "user_id": row[0],
+        "username": row[1]
     }
 
 # ----------------- Playlist Group API -----------------
 @app.get("/api/playlists")
-def get_playlists():
-    conn = sqlite3.connect("chill_space.db")
+def get_playlists(user_id: int = Query(...)):
+    conn = get_db()
     cursor = conn.cursor()
-    cursor.execute("SELECT id, name FROM playlists")
+    cursor.execute("SELECT id, name FROM playlists WHERE user_id = ?", (user_id,))
     rows = cursor.fetchall()
     conn.close()
     return [{"id": r[0], "name": r[1]} for r in rows]
 
 @app.post("/api/playlists")
 def create_playlist(data: CreatePlaylist):
-    conn = sqlite3.connect("chill_space.db")
+    conn = get_db()
     cursor = conn.cursor()
-    cursor.execute("INSERT INTO playlists (name) VALUES (?)", (data.name,))
+    cursor.execute("INSERT INTO playlists (user_id, name) VALUES (?, ?)", (data.user_id, data.name))
     conn.commit()
     pl_id = cursor.lastrowid
     conn.close()
     return {"id": pl_id, "name": data.name}
 
 @app.delete("/api/playlists/{pl_id}")
-def delete_playlist(pl_id: int):
-    conn = sqlite3.connect("chill_space.db")
+def delete_playlist(pl_id: int, user_id: int = Query(...)):
+    conn = get_db()
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM playlists WHERE id = ?", (pl_id,))
+    cursor.execute("DELETE FROM playlists WHERE id = ? AND user_id = ?", (pl_id, user_id))
     cursor.execute("DELETE FROM playlist_items WHERE playlist_id = ?", (pl_id,))
     conn.commit()
     conn.close()
@@ -196,7 +205,7 @@ def delete_playlist(pl_id: int):
 # ----------------- Playlist Items API -----------------
 @app.get("/api/playlists/{pl_id}/items")
 def get_playlist_items(pl_id: int):
-    conn = sqlite3.connect("chill_space.db")
+    conn = get_db()
     cursor = conn.cursor()
     cursor.execute("SELECT id, title, youtube_id, duration FROM playlist_items WHERE playlist_id = ?", (pl_id,))
     rows = cursor.fetchall()
@@ -206,7 +215,7 @@ def get_playlist_items(pl_id: int):
 @app.post("/api/playlist/items")
 def add_playlist_item(item: PlaylistItem):
     duration = fetch_youtube_duration(item.youtube_id)
-    conn = sqlite3.connect("chill_space.db")
+    conn = get_db()
     cursor = conn.cursor()
     cursor.execute(
         "INSERT INTO playlist_items (playlist_id, title, youtube_id, duration) VALUES (?, ?, ?, ?)", 
@@ -219,7 +228,7 @@ def add_playlist_item(item: PlaylistItem):
 
 @app.delete("/api/playlist/items/{item_id}")
 def delete_playlist_item(item_id: int):
-    conn = sqlite3.connect("chill_space.db")
+    conn = get_db()
     cursor = conn.cursor()
     cursor.execute("DELETE FROM playlist_items WHERE id = ?", (item_id,))
     conn.commit()
@@ -228,38 +237,38 @@ def delete_playlist_item(item_id: int):
 
 # ----------------- To-Do API -----------------
 @app.get("/api/todos")
-def get_todos():
-    conn = sqlite3.connect("chill_space.db")
+def get_todos(user_id: int = Query(...)):
+    conn = get_db()
     cursor = conn.cursor()
-    cursor.execute("SELECT id, text, done FROM todos")
+    cursor.execute("SELECT id, text, done FROM todos WHERE user_id = ?", (user_id,))
     rows = cursor.fetchall()
     conn.close()
     return [{"id": r[0], "text": r[1], "done": bool(r[2])} for r in rows]
 
 @app.post("/api/todos")
 def add_todo(todo: TodoItem):
-    conn = sqlite3.connect("chill_space.db")
+    conn = get_db()
     cursor = conn.cursor()
-    cursor.execute("INSERT INTO todos (text, done) VALUES (?, ?)", (todo.text, int(todo.done)))
+    cursor.execute("INSERT INTO todos (user_id, text, done) VALUES (?, ?, ?)", (todo.user_id, todo.text, int(todo.done)))
     conn.commit()
     todo_id = cursor.lastrowid
     conn.close()
     return {"id": todo_id, "text": todo.text, "done": todo.done}
 
 @app.put("/api/todos/{todo_id}")
-def toggle_todo(todo_id: int):
-    conn = sqlite3.connect("chill_space.db")
+def toggle_todo(todo_id: int, user_id: int = Query(...)):
+    conn = get_db()
     cursor = conn.cursor()
-    cursor.execute("UPDATE todos SET done = NOT done WHERE id = ?", (todo_id,))
+    cursor.execute("UPDATE todos SET done = NOT done WHERE id = ? AND user_id = ?", (todo_id, user_id))
     conn.commit()
     conn.close()
     return {"status": "success"}
 
 @app.delete("/api/todos/{todo_id}")
-def delete_todo(todo_id: int):
-    conn = sqlite3.connect("chill_space.db")
+def delete_todo(todo_id: int, user_id: int = Query(...)):
+    conn = get_db()
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM todos WHERE id = ?", (todo_id,))
+    cursor.execute("DELETE FROM todos WHERE id = ? AND user_id = ?", (todo_id, user_id))
     conn.commit()
     conn.close()
     return {"status": "deleted"}
